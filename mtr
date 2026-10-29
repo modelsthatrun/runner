@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# mtr: measure open models on your GPU and send the results to ModelsThatRun (README.md).
+# Runs the tool in its own uv environment, from its committed lock. Works from any directory.
+set -euo pipefail
+here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+if ! command -v uv >/dev/null 2>&1; then
+  echo "mtr needs uv: https://docs.astral.sh/uv/getting-started/installation/" >&2
+  echo 'mtr-result: {"status": "fail", "code": "UNSUPPORTED", "message": "uv is not installed", "hint": "Install uv: https://docs.astral.sh/uv/", "outputs": {}, "warnings": []}'
+  exit 3
+fi
+unset VIRTUAL_ENV
+exec uv run --quiet --frozen --project "$here/tools/measure" mtr "$@"

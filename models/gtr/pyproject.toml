@@ -1,0 +1,35 @@
+# The model's uv environment. GTR has no package: the adapter runs a pinned checkout of the
+# repository. These pins are its requirements.txt: torch 2.11.0 from PyTorch's cu128 index (the
+# version its latencies were measured with), flash-linear-attention 0.5.0 (the Triton GLA kernel),
+# and the unpinned runtime packages that inference imports.
+[project]
+name = "mtr-model-gtr"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = [
+  "mtr-measure",
+  "torch==2.11.0",
+  "torchvision==0.26.0",
+  "flash-linear-attention==0.5.0",
+  "calflops",
+  "einops",
+  "faster-coco-eval",
+  "opencv-python-headless",
+  "pyyaml",
+  "scipy",
+  "tensorboard",
+  "transformers",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+mtr-measure = { path = "../../tools/measure", editable = true }
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true

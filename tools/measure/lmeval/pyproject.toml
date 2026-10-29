@@ -1,0 +1,13 @@
+# lm-evaluation-harness in its own uv environment, for `mtr eval` on language models.
+# The tool runs it against the pinned llama-server's chat endpoint (tools/measure/src/mtr_measure/llmeval.py).
+# Changing its version means evaluating every language model again: raise PROTOCOL_VERSION with it.
+[project]
+name = "mtr-lmeval"
+version = "0.0.0"
+requires-python = ">=3.10"
+dependencies = [
+  "lm-eval[api,ifeval]==0.4.13",
+]
+
+[tool.uv]
+package = false

@@ -1,0 +1,19 @@
+# The fixed input each task's image models are timed on (docs/protocol.md, "Latency"). It is part of the
+# protocol: changing a task's image means measuring every model of that task again. `mtr run` checks the
+# file's sha256 before it times anything.
+
+[tasks]
+object-detection = "dog-walk-square"
+instance-segmentation = "dog-walk-square"
+image-matting = "dog-walk-square"
+depth-estimation = "dog-walk-square"
+pose-estimation = "dog-walk-square"
+
+[images.dog-walk-square]
+file = "dog-walk-square.jpg"
+sha256 = "787c3de9bbd90c014a272ea35650164a5cd62f1a98a38904657f131236ebcee7"
+size = "1600x1067"
+author = "Retired electrician"
+source = "https://commons.wikimedia.org/wiki/File:Moscow,_Gagarina_Square,_walking_the_dog_June_2025_01.jpg"
+license = "CC0-1.0"
+note = "Dedicated to the public domain (CC0 1.0) by its author, checked 2026-10-27. Downscaled to 1600x1067, metadata removed."

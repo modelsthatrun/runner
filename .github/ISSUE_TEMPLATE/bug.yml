@@ -1,0 +1,30 @@
+name: Something failed
+description: A command stopped, crashed or gave an odd result
+labels: [bug]
+body:
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      description: What you ran
+      placeholder: ./mtr run rf-detr --size small
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: The mtr-result line
+      description: The last line the command printed
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of ./mtr doctor
+      render: text
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: The relevant part of the log the result line names (.check/, runs/ or evals/), what you expected

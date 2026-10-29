@@ -1,0 +1,321 @@
+{
+  "record": {
+    "kind": "llm",
+    "model": "qwen3",
+    "size": "8b-q4_k_m",
+    "weights": [
+      {
+        "file": "Qwen3-8B-Q4_K_M.gguf",
+        "bytes": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ],
+    "measurement": {
+      "engine": {
+        "name": "llama.cpp",
+        "release": "v0.7.0",
+        "build": "b11669",
+        "cuda": "12.6",
+        "binary_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "quant": "Q4_K_M",
+      "batch": 1,
+      "context": 8192,
+      "prompt_tokens": 512,
+      "prompt_sha256": "7b017d0e34df57fe62fc8b5410b5f357a149419530fb0757d0a573f5762574a9",
+      "gen_tokens": 256,
+      "ttft_ms": {
+        "median": 32.74,
+        "p90": 33.01
+      },
+      "e2e_ms": {
+        "median": 2419.0,
+        "p90": 2425.1
+      },
+      "prefill_tps": 4138.2,
+      "decode_tps": 104.61,
+      "vram_peak_mib": 6400,
+      "gpu_layers": "37/37",
+      "server_args": [
+        "-c",
+        "8192"
+      ],
+      "iterations": {
+        "warmup": 2,
+        "timed": 10
+      },
+      "env": {
+        "gpu": "NVIDIA GeForce RTX 3090",
+        "driver": "580.95.05",
+        "python": "3.12.3",
+        "baseline_mib": 400,
+        "cpu": "CPU",
+        "gpu_memory_mib": 24576,
+        "compute_capability": "8.6",
+        "os": "Linux",
+        "power_limit_w": 350.0,
+        "power_default_w": 350.0
+      },
+      "measured": "2026-10-29T10:00:00+09:00",
+      "protocol": 2,
+      "runs": [
+        {
+          "ttft_ms": 31.84,
+          "prefill_tps": 4138.2,
+          "decode_tps": 104.28,
+          "vram_peak_mib": 6400
+        },
+        {
+          "ttft_ms": 32.74,
+          "prefill_tps": 4138.2,
+          "decode_tps": 104.61,
+          "vram_peak_mib": 6400
+        },
+        {
+          "ttft_ms": 33.64,
+          "prefill_tps": 4138.2,
+          "decode_tps": 104.94,
+          "vram_peak_mib": 6400
+        }
+      ]
+    },
+    "provenance": {
+      "tool": {
+        "name": "mtr",
+        "version": "0.2.0",
+        "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "dirty": false
+      },
+      "adapter_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "lock_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "input_sha256": null
+    }
+  },
+  "times": {
+    "kind": "llm",
+    "runs": [
+      [
+        {
+          "ttft_ms": 31.7,
+          "e2e_ms": 2411.3,
+          "prefill_tps": 4123.4,
+          "decode_tps": 104.21,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 31.837,
+          "e2e_ms": 2413.0,
+          "prefill_tps": 4126.7,
+          "decode_tps": 104.28099999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 31.974,
+          "e2e_ms": 2414.7000000000003,
+          "prefill_tps": 4130.0,
+          "decode_tps": 104.35199999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 32.111,
+          "e2e_ms": 2416.4,
+          "prefill_tps": 4133.299999999999,
+          "decode_tps": 104.21,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 31.7,
+          "e2e_ms": 2418.1000000000004,
+          "prefill_tps": 4136.599999999999,
+          "decode_tps": 104.28099999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 31.837,
+          "e2e_ms": 2419.8,
+          "prefill_tps": 4139.9,
+          "decode_tps": 104.35199999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 31.974,
+          "e2e_ms": 2421.5,
+          "prefill_tps": 4143.2,
+          "decode_tps": 104.21,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 32.111,
+          "e2e_ms": 2423.2000000000003,
+          "prefill_tps": 4146.5,
+          "decode_tps": 104.28099999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 31.7,
+          "e2e_ms": 2424.9,
+          "prefill_tps": 4149.799999999999,
+          "decode_tps": 104.35199999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 31.837,
+          "e2e_ms": 2426.6000000000004,
+          "prefill_tps": 4153.099999999999,
+          "decode_tps": 104.21,
+          "prompt_n": 512
+        }
+      ],
+      [
+        {
+          "ttft_ms": 32.6,
+          "e2e_ms": 2411.3,
+          "prefill_tps": 4123.4,
+          "decode_tps": 104.53999999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 32.737,
+          "e2e_ms": 2413.0,
+          "prefill_tps": 4126.7,
+          "decode_tps": 104.61099999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 32.874,
+          "e2e_ms": 2414.7000000000003,
+          "prefill_tps": 4130.0,
+          "decode_tps": 104.68199999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 33.011,
+          "e2e_ms": 2416.4,
+          "prefill_tps": 4133.299999999999,
+          "decode_tps": 104.53999999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 32.6,
+          "e2e_ms": 2418.1000000000004,
+          "prefill_tps": 4136.599999999999,
+          "decode_tps": 104.61099999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 32.737,
+          "e2e_ms": 2419.8,
+          "prefill_tps": 4139.9,
+          "decode_tps": 104.68199999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 32.874,
+          "e2e_ms": 2421.5,
+          "prefill_tps": 4143.2,
+          "decode_tps": 104.53999999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 33.011,
+          "e2e_ms": 2423.2000000000003,
+          "prefill_tps": 4146.5,
+          "decode_tps": 104.61099999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 32.6,
+          "e2e_ms": 2424.9,
+          "prefill_tps": 4149.799999999999,
+          "decode_tps": 104.68199999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 32.737,
+          "e2e_ms": 2426.6000000000004,
+          "prefill_tps": 4153.099999999999,
+          "decode_tps": 104.53999999999999,
+          "prompt_n": 512
+        }
+      ],
+      [
+        {
+          "ttft_ms": 33.5,
+          "e2e_ms": 2411.3,
+          "prefill_tps": 4123.4,
+          "decode_tps": 104.86999999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 33.637,
+          "e2e_ms": 2413.0,
+          "prefill_tps": 4126.7,
+          "decode_tps": 104.94099999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 33.774,
+          "e2e_ms": 2414.7000000000003,
+          "prefill_tps": 4130.0,
+          "decode_tps": 105.01199999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 33.911,
+          "e2e_ms": 2416.4,
+          "prefill_tps": 4133.299999999999,
+          "decode_tps": 104.86999999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 33.5,
+          "e2e_ms": 2418.1000000000004,
+          "prefill_tps": 4136.599999999999,
+          "decode_tps": 104.94099999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 33.637,
+          "e2e_ms": 2419.8,
+          "prefill_tps": 4139.9,
+          "decode_tps": 105.01199999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 33.774,
+          "e2e_ms": 2421.5,
+          "prefill_tps": 4143.2,
+          "decode_tps": 104.86999999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 33.911,
+          "e2e_ms": 2423.2000000000003,
+          "prefill_tps": 4146.5,
+          "decode_tps": 104.94099999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 33.5,
+          "e2e_ms": 2424.9,
+          "prefill_tps": 4149.799999999999,
+          "decode_tps": 105.01199999999999,
+          "prompt_n": 512
+        },
+        {
+          "ttft_ms": 33.637,
+          "e2e_ms": 2426.6000000000004,
+          "prefill_tps": 4153.099999999999,
+          "decode_tps": 104.86999999999999,
+          "prompt_n": 512
+        }
+      ]
+    ]
+  },
+  "message": "golden",
+  "client": {
+    "name": "mtr",
+    "version": "0.2.0"
+  },
+  "license": "CC0-1.0"
+}

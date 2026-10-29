@@ -1,0 +1,121 @@
+# The shared prompt set for the chat task (D40, D41): the language-model counterpart of the image test set.
+#
+# Every chat checkpoint answers every prompt once, the same way (the settings below), and its answers are
+# shown side by side with other models'. That is how a page shows the model ran. We wrote every prompt for
+# this site; none is copied from a benchmark or the web.
+#
+# `check` says what a correct answer must do. The owner, or an agent proposing it, flags an answer as a
+# failure by hand when it misses the check, with a one-line note, as for image outputs.
+#
+# This file is part of the protocol. Changing a prompt, adding one or changing the settings means every
+# chat checkpoint answers again: raise `version` with it.
+
+version = 1
+
+[generation]
+max_tokens = 512    # answers are cut here; every check fits well inside it
+temperature = 0     # greedy, so the answer reproduces
+thinking = "off"    # the adapter's THINKING_OFF_ARGS, as for accuracy (protocol.py)
+system = ""         # no system prompt: the model's own chat template, as a user would get it
+
+[[prompts]]
+id = "format-three-bullets"
+category = "Instruction following"
+prompt = """List three practical ways to reduce GPU memory use when running a neural network for inference. Answer with exactly three bullet points, each under 15 words, and nothing else."""
+check = "Exactly three bullet points, each under 15 words, with no text before or after them. Each way is real, such as lower precision, a smaller batch or a shorter input."
+
+[[prompts]]
+id = "summarize-two-sentences"
+category = "Summarizing"
+prompt = """Summarize the paragraph below in exactly two sentences.
+
+A small observatory on a hill keeps a logbook for every night it opens. Before anyone looks through the telescope, they write down the cloud cover, the temperature and how steady the air is, because a blurry night and a sharp night can make the same star look very different. The staff also measure the same three reference stars at the start and end of each session. If those reference readings drift, every other number from that night is marked as uncertain rather than thrown away, so that later readers can decide for themselves how much to trust it."""
+check = "Exactly two sentences. It mentions writing down the conditions before observing, and using reference stars to mark a night's numbers as uncertain. It adds nothing that the paragraph doesn't say."
+
+[[prompts]]
+id = "extract-json"
+category = "Extracting data"
+prompt = """Extract these fields from the note below and answer with a JSON object only, without code fences: customer (string), date (YYYY-MM-DD), total_eur (number), items (array of strings).
+
+Note: Order for Mara Lindqvist, placed on 3 March 2026. She bought a desk lamp for 34.90 euros, two notebooks at 4.50 euros each, and a USB cable for 9.99 euros."""
+check = 'Valid JSON with exactly these keys and nothing around it: customer "Mara Lindqvist", date "2026-03-03", total_eur 53.89, and items naming the lamp, the notebooks and the cable.'
+
+[[prompts]]
+id = "math-arrival-time"
+category = "Arithmetic"
+prompt = """A train leaves at 09:40 and travels 210 km at an average speed of 84 km/h. At what time does it arrive? Explain in at most three short steps, then give the final answer on its own line as "Answer: HH:MM"."""
+check = 'The last line is "Answer: 12:10". The trip takes 210 / 84 = 2.5 hours.'
+
+[[prompts]]
+id = "logic-pets"
+category = "Logic"
+prompt = """Ana, Ben and Chloe each own exactly one pet: a cat, a dog or a parrot, and no two of them own the same pet. Ana does not own the dog. Chloe does not own the cat. Ben owns neither the cat nor the parrot. Who owns which pet? Answer in the form "Ana: ..., Ben: ..., Chloe: ..."."""
+check = "Ana: cat, Ben: dog, Chloe: parrot."
+
+[[prompts]]
+id = "code-palindrome"
+category = "Writing code"
+prompt = """Write a Python function is_palindrome(s: str) -> bool that ignores case, spaces and punctuation. After the function, show two example calls with their expected results as comments."""
+check = 'A correct function: it keeps only letters and digits, lowercased, and compares them with their reverse. The examples are right, such as "A man, a plan, a canal: Panama" giving True.'
+
+[[prompts]]
+id = "code-find-bug"
+category = "Fixing code"
+prompt = """This Python function should return the average of a list of numbers, but it gives wrong results. Explain the bug in one sentence, then give the corrected function.
+
+def average(values):
+    total = 0
+    for i in range(1, len(values)):
+        total += values[i]
+    return total / len(values)"""
+check = "It says the loop skips the first number, because the range starts at 1. The fix sums every number, for example sum(values) / len(values). Handling an empty list is a bonus, not required."
+
+[[prompts]]
+id = "grounded-qa"
+category = "Answering from a text"
+prompt = """Answer two questions using only the text below. If the text doesn't say, answer "Not stated."
+1. What happens to a night's numbers when the reference readings drift?
+2. In what year did the observatory open?
+
+Text: A small observatory on a hill keeps a logbook for every night it opens. Before anyone looks through the telescope, they write down the cloud cover, the temperature and how steady the air is, because a blurry night and a sharp night can make the same star look very different. The staff also measure the same three reference stars at the start and end of each session. If those reference readings drift, every other number from that night is marked as uncertain rather than thrown away, so that later readers can decide for themselves how much to trust it."""
+check = 'Question 1: they are marked as uncertain, not thrown away. Question 2: "Not stated." Any year it gives is invented, and a failure.'
+
+[[prompts]]
+id = "translate-korean"
+category = "Translating"
+prompt = """Translate into Korean, polite and natural, as you would write to a colleague: "Thanks for sending the measurements. Could you run the larger model again tomorrow morning, when the machine is idle?\""""
+check = "Natural, polite Korean that keeps every part: thanks for the measurements, run the larger model again, tomorrow morning, when the machine is idle."
+
+[[prompts]]
+id = "rewrite-polite"
+category = "Rewriting"
+prompt = """Rewrite this message to be polite and clear, in under 60 words, keeping every fact: "your model page is wrong. the license says apache but the weights are non commercial. fix it\""""
+check = "Under 60 words and polite. It still says the page lists Apache while the weights are non-commercial, and asks for a correction."
+
+[[prompts]]
+id = "classify-reviews"
+category = "Classifying"
+prompt = """Label each review as positive, negative or mixed. Answer with a numbered list of labels only.
+1. Setup took five minutes and it has worked perfectly ever since.
+2. The battery died after two days and support never replied.
+3. Great screen, but the speakers are tinny and quiet.
+4. Honestly the best purchase I have made this year."""
+check = "1 positive, 2 negative, 3 mixed, 4 positive, and nothing else."
+
+[[prompts]]
+id = "explain-vram"
+category = "Explaining"
+prompt = """Explain to a high-school student what VRAM is and why it limits which AI models can run on a graphics card. Use at most 80 words."""
+check = "At most 80 words, and correct: VRAM is the graphics card's own memory, and a model's weights and working data must fit in it for the card to run the model."
+
+[[prompts]]
+id = "shell-largest-files"
+category = "Command line"
+prompt = """Give one Linux shell command that lists the five largest files under the current directory, searching subdirectories too, with human-readable sizes. Answer with the command only."""
+check = "One command that works, such as find . -type f -exec du -h {} + | sort -rh | head -n 5. A command that lists directories instead of files is a failure."
+
+[[prompts]]
+id = "fact-fahrenheit"
+category = "Knowledge"
+prompt = """In one sentence: what is the boiling point of water at sea level in degrees Fahrenheit, and who proposed the Fahrenheit scale?"""
+check = "212 °F, and Daniel Gabriel Fahrenheit."

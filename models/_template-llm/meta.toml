@@ -1,0 +1,54 @@
+# The catalog facts about one language model family: names, links, licenses with their sources, paper numbers.
+# The catalog's maintainers fill it in when a model goes on the site; measuring doesn't need it, and it is
+# gitignored outside _template-llm.
+# Every license entry needs a primary source and a check date. Never type measured numbers or answers here:
+# they come from runs/<size>.json, evals/<size>/<benchmark>.json and outputs/<size>/answers.json.
+
+id = "model-id"
+name = "Model name"
+summary = "One line, 160 characters max."
+task = "chat"
+variant = "general"
+use_when = ""
+avoid_when = ""
+alternatives = []
+
+[links]
+code = "https://github.com/owner/repo"   # the model's own repository
+paper = ""
+project = ""
+
+# The code license is the inference code that ran: the pinned llama.cpp build.
+[code_license]
+spdx = "MIT"
+source = "https://github.com/ggml-org/llama.cpp/blob/b11669/LICENSE"
+checked = ""  # YYYY-MM-DD, after reading it
+
+# Repeat this table once per GGUF file (size), as in adapter.py's SIZES.
+[[checkpoints]]
+size = "8b-q4_k_m"
+status = "runs-as-is"
+weights_url = ""     # https://huggingface.co/<repo>/resolve/<commit>/<file>.gguf
+formats = ["gguf"]
+gated = false
+verdict = ""         # commercial-ok | conditional | non-commercial (most restrictive of code and weights)
+verdict_note = ""
+
+[checkpoints.weights_license]
+spdx = ""
+source = ""   # the LICENSE or model card in the GGUF repository, at the pinned commit
+checked = ""
+
+[checkpoints.reported]   # remove this table if the model card reports nothing comparable
+metric = ""
+value = 0.0
+dataset = ""
+source = ""   # e.g. "technical report, table 20 (non-thinking)"
+# benchmark = "ifeval"   # only if it is the same benchmark and metric that `mtr eval` measures
+
+# Flag answers that miss their check (tools/measure/src/mtr_measure/prompts/chat.toml) after reading them.
+# [[answers]]
+# prompt = "grounded-qa"
+# size = "8b-q4_k_m"
+# failure = true
+# note = "invents an opening year"

@@ -1,0 +1,19 @@
+# The model's uv environment. Pin the official package and torch at the versions you run,
+# and commit uv.lock next to this file, so the run can be repeated.
+[project]
+name = "mtr-model-moge-2"  # mtr-model-<id>
+version = "0.0.0"
+requires-python = ">=3.10"
+dependencies = [
+  "mtr-measure",
+  # The last commit before 2026-08-18, when MoGe-3 brought FlexGEMM (compiled CUDA kernels).
+  "moge @ git+https://github.com/microsoft/MoGe.git@925b8ed835a7a9cdb7578ba15c658a0afc969030",
+  "torch==2.14.1",
+  "torchvision==0.29.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+mtr-measure = { path = "../../tools/measure", editable = true }

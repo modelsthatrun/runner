@@ -1,0 +1,52 @@
+# The catalog facts about one model family: names, links, licenses with their sources, and paper numbers.
+# The catalog's maintainers fill it in when a model goes on the site; measuring doesn't need it, and it is
+# gitignored outside _template. Every license entry needs a primary source and a check date. Never type
+# measured numbers here: they come from run records in runs/<size>.json (docs/protocol.md).
+
+id = "model-id"
+name = "Model name"
+summary = "One line, 160 characters max."
+task = "object-detection"
+variant = "real-time-closed-set"
+use_when = ""
+avoid_when = ""
+alternatives = []
+
+[links]
+code = "https://github.com/owner/repo"
+paper = ""
+project = ""
+
+[code_license]
+spdx = ""
+source = ""   # URL of the repository LICENSE file
+checked = ""  # YYYY-MM-DD
+
+# Repeat this table once per checkpoint size.
+[[checkpoints]]
+size = "medium"
+status = ""         # runs-as-is | runs-with-fixes
+patch = ""          # path under fixes/ when status is runs-with-fixes
+weights_url = ""
+gated = false
+verdict = ""        # commercial-ok | conditional | non-commercial (most restrictive of code and weights)
+verdict_note = ""
+
+[checkpoints.weights_license]
+spdx = ""
+source = ""   # model card or release notes for this exact checkpoint
+checked = ""
+
+[checkpoints.reported]   # remove this table if the paper reports nothing comparable
+metric = ""
+value = 0.0
+dataset = ""
+source = ""   # e.g. "paper, table 2"
+# benchmark = "coco-val2017-bbox"   # only if the paper used the same benchmark, split and metric that `mtr eval` measures
+
+# Optional: flag outputs by hand after looking at them. Files live in outputs/<size>/<image-id>.webp.
+# [[outputs]]
+# image = "street-crowd-01"
+# size = "medium"
+# failure = true
+# note = "misses the cyclists in the back"

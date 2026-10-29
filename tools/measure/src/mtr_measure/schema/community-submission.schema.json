@@ -1,0 +1,916 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://modelsthatrun.dev/schema/community-submission.schema.json",
+  "$comment": "Generated from ModelsThatRun's schema package. Do not edit by hand.",
+  "title": "Community submission",
+  "type": "object",
+  "properties": {
+    "record": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "description": "Image models. Language models have llmRunRecord",
+              "type": "string",
+              "const": "image"
+            },
+            "model": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+            },
+            "size": {
+              "type": "string",
+              "minLength": 1
+            },
+            "weights": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "file",
+                  "bytes",
+                  "sha256"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "measurement": {
+              "type": "object",
+              "properties": {
+                "precision": {
+                  "type": "string",
+                  "enum": [
+                    "fp32",
+                    "fp16",
+                    "bf16"
+                  ]
+                },
+                "batch": {
+                  "type": "number",
+                  "const": 1
+                },
+                "input": {
+                  "type": "string",
+                  "pattern": "^\\d+x\\d+$"
+                },
+                "latency_ms": {
+                  "type": "object",
+                  "properties": {
+                    "median": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "p90": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "median",
+                    "p90"
+                  ],
+                  "additionalProperties": false
+                },
+                "latency_scope": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "vram_peak_mib": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Device-level NVML peak minus pre-load baseline"
+                },
+                "torch_max_reserved_mib": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "iterations": {
+                  "type": "object",
+                  "properties": {
+                    "warmup": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "timed": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "warmup",
+                    "timed"
+                  ],
+                  "additionalProperties": false
+                },
+                "env": {
+                  "type": "object",
+                  "properties": {
+                    "gpu": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "driver": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "cuda": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "torch": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "python": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "package": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Model package and version, e.g. rfdetr==1.11.2"
+                    },
+                    "image_digest": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "baseline_mib": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "cpu": {
+                      "description": "CPU model, from /proc/cpuinfo",
+                      "type": "string"
+                    },
+                    "gpu_memory_mib": {
+                      "description": "Total GPU memory, from NVML",
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "compute_capability": {
+                      "description": "CUDA compute capability, e.g. 8.9",
+                      "type": "string",
+                      "pattern": "^\\d+\\.\\d+$"
+                    },
+                    "os": {
+                      "description": "Kernel and C library, e.g. Linux 6.2.6 glibc 2.35",
+                      "type": "string"
+                    },
+                    "power_limit_w": {
+                      "description": "Enforced GPU power limit in watts, from NVML",
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "power_default_w": {
+                      "description": "Default GPU power limit in watts, from NVML",
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "gpu",
+                    "driver",
+                    "cuda",
+                    "torch",
+                    "python",
+                    "package",
+                    "image_digest",
+                    "baseline_mib"
+                  ],
+                  "additionalProperties": false
+                },
+                "measured": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "protocol": {
+                  "description": "Protocol version (tools/measure/src/mtr_measure/protocol.py); absent means 1",
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "runs": {
+                  "description": "Each independent run. latency_ms holds the medians of these, vram_peak_mib the highest",
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "median": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "p90": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "vram_peak_mib": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "median",
+                      "p90",
+                      "vram_peak_mib"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "precision",
+                "batch",
+                "input",
+                "latency_ms",
+                "latency_scope",
+                "vram_peak_mib",
+                "iterations",
+                "env",
+                "measured"
+              ],
+              "additionalProperties": false
+            },
+            "provenance": {
+              "type": "object",
+              "properties": {
+                "tool": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "const": "mtr"
+                    },
+                    "version": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "commit": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{40}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "git commit of the tool checkout, null outside git"
+                    },
+                    "dirty": {
+                      "description": "Whether tools/measure or the model directory had uncommitted changes",
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "version",
+                    "commit",
+                    "dirty"
+                  ],
+                  "additionalProperties": false
+                },
+                "adapter_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "lock_sha256": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "sha256 of the model environment's uv.lock"
+                },
+                "input_sha256": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "sha256 of each input file, for image models; null for language models"
+                }
+              },
+              "required": [
+                "tool",
+                "adapter_sha256",
+                "lock_sha256",
+                "input_sha256"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "model",
+            "size",
+            "weights",
+            "measurement"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "llm"
+            },
+            "model": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+            },
+            "size": {
+              "type": "string",
+              "minLength": 1
+            },
+            "weights": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "file",
+                  "bytes",
+                  "sha256"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "measurement": {
+              "type": "object",
+              "properties": {
+                "engine": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "release": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "build": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "cuda": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "binary_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "release",
+                    "build",
+                    "cuda",
+                    "binary_sha256"
+                  ],
+                  "additionalProperties": false
+                },
+                "quant": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "GGUF quantization, e.g. Q4_K_M"
+                },
+                "batch": {
+                  "type": "number",
+                  "const": 1
+                },
+                "context": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Context window the server allocated; VRAM is measured at it"
+                },
+                "prompt_tokens": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "prompt_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$",
+                  "description": "sha256 of llm_prompt.txt, whose first prompt_tokens tokens are the prompt"
+                },
+                "gen_tokens": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "ttft_ms": {
+                  "type": "object",
+                  "properties": {
+                    "median": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "p90": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "median",
+                    "p90"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Time to the first streamed token, client side"
+                },
+                "e2e_ms": {
+                  "type": "object",
+                  "properties": {
+                    "median": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "p90": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "median",
+                    "p90"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Whole request: prefill and every generated token"
+                },
+                "prefill_tps": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Prompt tokens per second, the server's own timing"
+                },
+                "decode_tps": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Generated tokens per second, the server's own timing"
+                },
+                "vram_peak_mib": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Device-level NVML peak minus pre-load baseline"
+                },
+                "gpu_layers": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Layers on the GPU, e.g. 29/29. All must be"
+                },
+                "server_args": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "iterations": {
+                  "type": "object",
+                  "properties": {
+                    "warmup": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "timed": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "warmup",
+                    "timed"
+                  ],
+                  "additionalProperties": false
+                },
+                "env": {
+                  "type": "object",
+                  "properties": {
+                    "gpu": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "driver": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "python": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "baseline_mib": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "cpu": {
+                      "description": "CPU model, from /proc/cpuinfo",
+                      "type": "string"
+                    },
+                    "gpu_memory_mib": {
+                      "description": "Total GPU memory, from NVML",
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "compute_capability": {
+                      "description": "CUDA compute capability, e.g. 8.9",
+                      "type": "string",
+                      "pattern": "^\\d+\\.\\d+$"
+                    },
+                    "os": {
+                      "description": "Kernel and C library, e.g. Linux 6.2.6 glibc 2.35",
+                      "type": "string"
+                    },
+                    "power_limit_w": {
+                      "description": "Enforced GPU power limit in watts, from NVML",
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "power_default_w": {
+                      "description": "Default GPU power limit in watts, from NVML",
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "gpu",
+                    "driver",
+                    "python",
+                    "baseline_mib"
+                  ],
+                  "additionalProperties": false
+                },
+                "measured": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "protocol": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "runs": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "ttft_ms": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "prefill_tps": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "decode_tps": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "vram_peak_mib": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "ttft_ms",
+                      "prefill_tps",
+                      "decode_tps",
+                      "vram_peak_mib"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "engine",
+                "quant",
+                "batch",
+                "context",
+                "prompt_tokens",
+                "prompt_sha256",
+                "gen_tokens",
+                "ttft_ms",
+                "e2e_ms",
+                "prefill_tps",
+                "decode_tps",
+                "vram_peak_mib",
+                "gpu_layers",
+                "server_args",
+                "iterations",
+                "env",
+                "measured",
+                "protocol",
+                "runs"
+              ],
+              "additionalProperties": false
+            },
+            "provenance": {
+              "type": "object",
+              "properties": {
+                "tool": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "const": "mtr"
+                    },
+                    "version": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "commit": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{40}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "git commit of the tool checkout, null outside git"
+                    },
+                    "dirty": {
+                      "description": "Whether tools/measure or the model directory had uncommitted changes",
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "version",
+                    "commit",
+                    "dirty"
+                  ],
+                  "additionalProperties": false
+                },
+                "adapter_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "lock_sha256": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "sha256 of the model environment's uv.lock"
+                },
+                "input_sha256": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "sha256 of each input file, for image models; null for language models"
+                }
+              },
+              "required": [
+                "tool",
+                "adapter_sha256",
+                "lock_sha256",
+                "input_sha256"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "kind",
+            "model",
+            "size",
+            "weights",
+            "measurement"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "times": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "image"
+            },
+            "runs": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "runs"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "llm"
+            },
+            "runs": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "ttft_ms": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "e2e_ms": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "prefill_tps": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "decode_tps": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "prompt_n": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "ttft_ms",
+                    "e2e_ms",
+                    "prefill_tps",
+                    "decode_tps",
+                    "prompt_n"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "runs"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "message": {
+      "default": "",
+      "type": "string",
+      "maxLength": 2000
+    },
+    "client": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "const": "mtr"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "license": {
+      "type": "string",
+      "const": "CC0-1.0",
+      "description": "The submitter dedicates the record to the public domain"
+    }
+  },
+  "required": [
+    "record",
+    "times",
+    "message",
+    "client",
+    "license"
+  ],
+  "additionalProperties": false
+}

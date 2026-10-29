@@ -1,0 +1,29 @@
+# Results and local state stay out of git. Results reach the site through `mtr submit`.
+models/*/meta.toml
+!models/_template/meta.toml
+!models/_template-llm/meta.toml
+models/*/runs/
+models/*/outputs/
+models/*/evals/
+models/*/.check/
+tools/measure/examples/*/runs/
+tools/measure/examples/*/outputs/
+tools/measure/examples/*/evals/
+tools/measure/examples/*/.check/
+# The queue of timed runs, local to one machine
+tools/measure/queue.json
+
+# Weights and caches
+.cache/
+*.pt
+*.pth
+*.onnx
+*.engine
+*.safetensors
+*.gguf
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/

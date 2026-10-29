@@ -1,0 +1,26 @@
+# The model's uv environment. DEIMv2 has no package: the adapter runs a pinned checkout of
+# the repository. These are its requirements.txt pins (torch 2.5.1, as its README recommends,
+# with Python 3.11) and the unpinned packages that inference imports.
+[project]
+name = "mtr-model-deimv2"  # mtr-model-<id>
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = [
+  "mtr-measure",
+  "torch==2.5.1",
+  "torchvision==0.20.1",
+  "faster-coco-eval>=1.6.7",
+  "pyyaml",
+  "tensorboard",
+  "scipy",
+  "calflops",
+  "transformers",
+  "safetensors",
+  "huggingface-hub",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+mtr-measure = { path = "../../tools/measure", editable = true }

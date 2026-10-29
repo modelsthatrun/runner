@@ -1,0 +1,28 @@
+name: test
+on:
+  push:
+  pull_request:
+jobs:
+  tool:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.6.12"  # the uv that wrote the locks; a newer one may want to rewrite them
+      - name: Tests (no GPU needed)
+        run: uv run --frozen --project tools/measure pytest tools/measure/tests -q
+      - name: Every model's uv.lock matches its pyproject.toml
+        run: |
+          for d in models/[!_]*/; do
+            if [ -f "$d/pyproject.toml" ]; then uv lock --check --project "$d" || exit 1; fi
+          done
+      - name: The timing images match their sha256
+        run: |
+          python3 - <<'PY'
+          import hashlib, pathlib, tomllib
+          t = tomllib.loads(pathlib.Path("timing/timing.toml").read_text())
+          for name, info in t["images"].items():
+              got = hashlib.sha256(pathlib.Path("timing", info["file"]).read_bytes()).hexdigest()
+              assert got == info["sha256"], f"{name}: {got}"
+          PY

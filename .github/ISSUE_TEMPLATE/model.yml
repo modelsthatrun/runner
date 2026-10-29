@@ -1,0 +1,31 @@
+name: Model request
+description: A model you'd like measured. It needs public code, public weights, and to fit one 24 GB GPU
+labels: [model]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Model
+      placeholder: RF-DETR
+    validations:
+      required: true
+  - type: input
+    id: code
+    attributes:
+      label: Official code repository
+      placeholder: https://github.com/…
+    validations:
+      required: true
+  - type: textarea
+    id: weights
+    attributes:
+      label: Checkpoints
+      description: Where each checkpoint can be downloaded, and its license as the model card states it
+    validations:
+      required: true
+  - type: checkboxes
+    id: adapter
+    attributes:
+      label: Adapter
+      options:
+        - label: I'd like to write the adapter myself (CONTRIBUTING.md)

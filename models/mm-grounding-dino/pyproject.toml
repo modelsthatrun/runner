@@ -1,0 +1,18 @@
+# The model's uv environment. Pin the official package and torch at the versions you run,
+# and commit uv.lock next to this file, so the run can be repeated.
+[project]
+name = "mtr-model-mm-grounding-dino"  # mtr-model-<id>
+version = "0.0.0"
+requires-python = ">=3.10"
+dependencies = [
+  "mtr-measure",
+  "transformers==4.57.1",  # 5.x breaks the MM-Grounding-DINO box head (thin, out-of-image boxes); 4.57.1 is right
+  "torch==2.14.1",
+  "torchvision==0.29.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+mtr-measure = { path = "../../tools/measure", editable = true }

@@ -1,0 +1,31 @@
+# The shared measuring tool (docs/protocol.md) and its command, `mtr`. Each model environment depends
+# on it by path, so the same code times and draws every model. It has no torch dependency of its own:
+# the model environment brings torch, and the tool only uses it inside the worker process. numpy and
+# Pillow are for the prediction types and the drawing code, pycocotools for scoring accuracy.
+# Keep `version` and the dependencies as they are unless you mean to re-lock every model: each model's
+# uv.lock records both. The tool's own version is machine.TOOL_VERSION.
+[project]
+name = "mtr-measure"
+version = "0.1.0"
+description = "Measures open models on your GPU by one protocol, and sends the results to ModelsThatRun"
+requires-python = ">=3.10"
+dependencies = [
+  "nvidia-ml-py>=12.560",
+  "jsonschema>=4.23",
+  "numpy>=1.21",  # older model repos often pin numpy<1.24
+  "pillow>=10.1",
+  "pycocotools>=2.0.7",  # the reference COCO scorer for `mtr eval` (eval.py)
+]
+
+[project.scripts]
+mtr = "mtr_measure.main:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mtr_measure"]

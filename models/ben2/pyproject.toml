@@ -1,0 +1,19 @@
+# The model's uv environment. Pin the official package and torch at the versions you run,
+# and commit uv.lock next to this file, so the run can be repeated.
+[project]
+name = "mtr-model-ben2"  # mtr-model-<id>
+version = "0.0.0"
+requires-python = ">=3.10"
+dependencies = [
+  "mtr-measure",
+  "ben2 @ git+https://github.com/PramaLLC/BEN2.git@2c99a5da477b5523585bfa5c893888a6e818a8f6",
+  "opencv-python",  # ben2 imports cv2 but its requirements.txt leaves it out
+  "torch==2.14.1",
+  "torchvision==0.29.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+mtr-measure = { path = "../../tools/measure", editable = true }

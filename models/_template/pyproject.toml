@@ -1,0 +1,17 @@
+# The model's uv environment. Pin the official package and torch at the versions you run,
+# and commit uv.lock next to this file, so the run can be repeated.
+[project]
+name = "mtr-model-template"  # mtr-model-<id>
+version = "0.0.0"
+requires-python = ">=3.10"
+dependencies = [
+  "mtr-measure",
+  # "package-name==x.y.z",
+  # "torch==x.y.z",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+mtr-measure = { path = "../../tools/measure", editable = true }

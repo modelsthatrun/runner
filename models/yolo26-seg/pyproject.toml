@@ -1,0 +1,18 @@
+# The model's uv environment. Pin the official package and torch at the versions you run,
+# and commit uv.lock next to this file, so the run can be repeated.
+[project]
+name = "mtr-model-yolo26-seg"  # mtr-model-<id>
+version = "0.0.0"
+requires-python = ">=3.10"
+dependencies = [
+  "mtr-measure",
+  "ultralytics==8.4.189",
+  "torch==2.14.1",
+  "torchvision==0.29.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+mtr-measure = { path = "../../tools/measure", editable = true }

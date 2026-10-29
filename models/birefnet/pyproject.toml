@@ -1,0 +1,28 @@
+# The model's uv environment. The model card loads BiRefNet from Hugging Face with
+# trust_remote_code; these pins are its requirements.txt (torch 2.5.1, numpy<2 and the packages
+# its remote code imports), without the training-only ones.
+[project]
+name = "mtr-model-birefnet"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = [
+  "mtr-measure",
+  "torch==2.5.1",
+  "torchvision==0.20.1",
+  "numpy<2",
+  "opencv-python",
+  "timm",
+  "scipy",
+  "scikit-image",
+  "kornia",
+  "einops",
+  "transformers<5",  # transformers 5 needs a newer torch than the pinned 2.5.1
+  "huggingface-hub>0.25",
+  "accelerate",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+mtr-measure = { path = "../../tools/measure", editable = true }
