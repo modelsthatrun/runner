@@ -28,6 +28,9 @@ It handles two kinds of model:
 - **Pause hooks.** A machine that streams its desktop or runs a game launcher on the measuring GPU can name pause hooks in `~/.config/modelsthatrun/machine.toml`, for example `pause = ["sunshine", "steam"]`.
   - The hooks stop those programs for each timed run and start them again as soon as it ends, even if it fails.
   - The Sunshine hook also arms a fallback timer that starts Sunshine again after 10 minutes, in case the tool dies first.
+  - **Sunshine:** a systemd user unit, either the Flatpak's or the native packages' `sunshine.service`.
+  - **Steam:** the Flatpak or the native client.
+  - **Other programs** have no hook. Close them before a timed run.
   - Without the file, nothing is paused.
 - **The reference machine.** It is an RTX 4090 (24 GB) that also drives a desktop. Its idle baseline with the hooks paused is about 800 MiB. Numbers on the site under "Measured · our RTX 4090" come from it. Community results come from contributors' machines and are labelled with their GPU.
 
@@ -128,7 +131,7 @@ Records never carry a host name, a user name or a path.
 
 ## Outputs
 
-`mtr outputs` draws a checkpoint's outputs on a task's test images, for the catalog's galleries.
+`mtr outputs` draws a checkpoint's outputs on a task's test images, for the catalog's galleries. The catalog's maintainers run it: the shared test set isn't part of this repository, and submissions don't include outputs.
 
 - **Same treatment for every model.** Every model of a task is drawn the same way, with one fixed score threshold per task. Nobody tunes it per model.
 - **Format.** Outputs are WebP, at the input image's own size.

@@ -75,7 +75,9 @@ PLACEHOLDERS = {"N/A", "__background__", "background"}
 
 
 def parse_args(argv: list[str]):
-    p = Parser(prog="mtr eval", description="Score one checkpoint on a standard benchmark and write an eval record. Pauses nothing.")
+    p = Parser(prog="mtr eval", description="Score one checkpoint on a standard benchmark and write an eval record. Pauses nothing. "
+                                            "Image models: coco-val2017-bbox (detection), coco-val2017-segm (instance segmentation); "
+                                            "COCO val2017 downloads once, about 1 GB. Language models: ifeval, gsm8k-cot.")
     p.add_argument("model_dir", type=Path)
     p.add_argument("--size", required=True)
     p.add_argument("--benchmark", required=True, choices=sorted(BENCHMARKS))

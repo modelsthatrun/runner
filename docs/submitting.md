@@ -55,6 +55,12 @@ None of this proves a record is honest, because nobody can see your machine. It 
 
 **Where it never goes.** Community results never replace the reference measurement, and they never appear in task charts or rankings.
 
+## After you submit
+
+- **Review is by hand.** It may take days, and nothing notifies you. `mtr submissions` shows each submission's state (pending, accepted, hidden or rejected) and the reviewer's note.
+- **The site isn't public yet.** Accepted results appear on modelsthatrun.dev once it opens.
+- **A sign-in lasts 90 days.** After that, `mtr login` again.
+
 ## Removing a result
 
 Open an issue and name the submission id (`mtr submissions` lists them). It is hidden from the page.

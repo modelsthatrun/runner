@@ -24,7 +24,7 @@ What the tool writes stays out of git:
   evals/<size>/<benchmark>.json      # accuracy from `mtr eval`; its raw predictions stay next to it
   outputs/<size>/                    # images from `mtr outputs`, or answers.json for a language model
   .venv/                             # the model's environment, free to delete (`mtr clean`)
-  meta.toml                          # the catalog's facts about the model, kept by its maintainers
+  meta.toml                          # copied by `mtr new`: the catalog's facts, which its maintainers fill in. Contributors leave it alone
 ```
 
 **Starting a model.** `mtr new <id>` copies `_template/`, or `_template-llm/` with `--kind llm`.

@@ -115,7 +115,8 @@ def main(argv: list[str] | None = None) -> int:
     cmd, rest = argv[0], argv[1:]
     try:
         if cmd in MODEL_COMMANDS:
-            if rest[:1] in (["-h"], ["--help"]):
+            # Help anywhere on the line answers here, without building the model's environment first.
+            if "-h" in rest or "--help" in rest:
                 from . import cli
 
                 return cli.main([cmd, "--help"]) if cmd != "outputs" else _outputs_help()
@@ -228,6 +229,13 @@ def cmd_bench(argv: list[str]) -> int:
     sizes = args.sizes or ad.sizes_of_file(model_dir / "adapter.py")
     if not sizes:
         raise MeasureError("USAGE", "Couldn't read the adapter's SIZES. Name them with --size")
+    tool = machine.tool(model_dir)
+    if tool["dirty"]:
+        print("warning: tools/measure, timing/ or this model has uncommitted changes, so these records can't be submitted. "
+              "`git stash` (or a fresh clone) first if you mean to submit", flush=True)
+    elif tool["commit"] and machine.upstream_has(tool["commit"]) is False:
+        print("warning: this commit isn't on github.com/modelsthatrun/runner, so these records can't be submitted. "
+              "`git pull` first if you mean to submit", flush=True)
     results = []
     for size in sizes:
         print(f"--- {model_dir.name} / {size}: check", flush=True)

@@ -62,7 +62,8 @@ def remove(path: Path) -> None:
 
 
 def cmd_clean(argv: list[str], log: Log) -> int:
-    p = Parser(prog="mtr clean", description="Remove a model's uv environment and weights to free disk space, then prune uv's cache.")
+    p = Parser(prog="mtr clean", description="Remove a model's uv environment and weights to free disk space, then run `uv cache prune`, "
+                                             "which removes unused entries from your whole uv cache, not only this repository's.")
     p.add_argument("model_dir", type=paths.model_dir, help="The model: an id such as rf-detr, or its directory")
     p.add_argument("--yes", action="store_true", help="Delete. Without it, only list what would go")
     args = p.parse_args(argv)

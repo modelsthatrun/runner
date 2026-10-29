@@ -239,7 +239,7 @@ def check_path(model_dir: Path, size: str) -> Path:
     return model_dir / ".check" / f"{size}.json"
 
 
-# Copies of the site's record schemas, generated from the site's schema package; never edited here.
+# ModelsThatRun's record schemas, generated from the schema package its maintainers keep; never edited here.
 SCHEMA_DIR = Path(__file__).with_name("schema")
 
 

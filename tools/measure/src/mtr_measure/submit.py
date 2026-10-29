@@ -268,7 +268,7 @@ def cmd_submit(argv: list[str]) -> int:
         times_path = path.with_name(f"{size}.times.json")
         why = problems(rec, times_path, ad.task_of_file(model_dir / "adapter.py"))
         if why:
-            raise MeasureError("NOT_SUBMITTABLE", f"{model_dir.name} / {size}: {why[0]}")
+            raise MeasureError("DIRTY" if "uncommitted" in why[0] else "NOT_SUBMITTABLE", f"{model_dir.name} / {size}: {why[0]}")
         times = json.loads(times_path.read_text())
         body = payload(rec, times, args.message)
         errs = record.validate(body, "community-submission")
@@ -283,7 +283,7 @@ def cmd_submit(argv: list[str]) -> int:
 
     print(f"These go to {inbox()} as {login}. Once accepted, they show on the model's page at modelsthatrun.dev")
     print(f"with your GitHub login, and they are dedicated to the public domain ({LICENSE}).")
-    print("No image, path, host name or IP address is sent.\n")
+    print("No image, path or host name is sent, and the inbox doesn't store your IP address.\n")
     for size, _, body in todo:
         print(preview(login, model_dir.name, size, body["record"]))
     if args.dry_run:

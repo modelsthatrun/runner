@@ -28,7 +28,7 @@ CODES: dict[str, tuple[int, str]] = {
     "UNSUPPORTED": (3, "The tool runs on Linux with an NVIDIA GPU and its driver. `mtr doctor` says what is missing."),
     "ADAPTER_INTERFACE": (10, "The adapter declares something wrongly or misses it. Compare it with models/_template/adapter.py."),
     "ADAPTER_RUNTIME": (11, "load() or predict() raised. Read the traceback in the log, fix the adapter, then run `mtr check` again."),
-    "WEIGHTS_MISSING": (12, "weight_files() lists a file that doesn't exist. `mtr check` downloads weights; otherwise fix weight_files()."),
+    "WEIGHTS_MISSING": (12, "Run `mtr check` first: it downloads the weights. Gated weights need their terms accepted on Hugging Face and HF_TOKEN set."),
     "OOM": (13, "It didn't fit in the free GPU memory at the protocol's settings. Never lower them. Other programs may hold GPU "
                 "memory: close them, or ask whoever uses the machine. If it still doesn't fit, the checkpoint doesn't run on this GPU."),
     "NOT_CHECKED": (14, "Run `mtr check` for this checkpoint first. It must pass with the current adapter.py and uv.lock."),
@@ -49,11 +49,11 @@ CODES: dict[str, tuple[int, str]] = {
     "DATASET": (40, "The benchmark data is missing or damaged. Run the command again to download it, or check the disk space."),
     "ENGINE": (41, "The inference engine (llama.cpp) failed to build or start. Read the log; never switch to another build."),
     "EVAL": (42, "The accuracy evaluation failed. Read the log. Never change the benchmark settings to make it pass."),
-    "AUTH": (50, "Sign in with `mtr login`, then try again."),
+    "AUTH": (50, "The person whose GitHub account submits signs in with `mtr login` (it needs their browser), then try again."),
     "NETWORK": (51, "The inbox couldn't be reached. Check the connection, or MTR_INBOX if you set it, and try again."),
     "SUBMIT_REJECTED": (52, "The inbox refused the submission. The message says why; fix that and measure again if needed. Never edit a record."),
-    "DIRTY": (53, "The tool or the model directory has uncommitted changes, so its records can't be traced to a public commit. "
-                  "Commit or undo the changes, then measure again."),
+    "DIRTY": (53, "The tool, the timing images or the model had uncommitted changes, so the record can't be traced to a public commit. "
+                  "`git stash` (or use a fresh clone), then measure again."),
     "NOT_SUBMITTABLE": (54, "This record can't be submitted. The message says why; usually: measure it again with the current `mtr run`."),
 }
 

@@ -200,8 +200,9 @@ def cmd_run(argv: list[str], log: Log) -> int:
 
 
 def main(argv: list[str], log: Log) -> int:
-    if not argv:
-        raise MeasureError("USAGE", "mtr queue add|list|run|drop")
+    if not argv or argv[0] in ("-h", "--help"):
+        print(__doc__)
+        return 0 if argv else emit("USAGE", "mtr queue add|list|run|drop", log=log)
     cmd, rest = argv[0], argv[1:]
     commands = {"add": cmd_add, "list": cmd_list, "run": cmd_run, "drop": cmd_drop}
     if cmd not in commands:

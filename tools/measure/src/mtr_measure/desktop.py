@@ -4,11 +4,12 @@ A machine asks for them by name in ~/.config/modelsthatrun/machine.toml (machine
 `pause = ["sunshine", "steam"]`. Without that file nothing is paused, and the checks only refuse to run
 while another program computes on the GPU. Games are never closed automatically.
 
-    sunshine   the Sunshine streaming host (Flatpak, as a systemd user unit) and its liveness timer.
+    sunshine   the Sunshine streaming host as a systemd user unit (the Flatpak's or the native
+               packages' sunshine.service), and a sunshine-liveness.timer if there is one.
                Someone may be reaching the desktop through it, so it must come back as soon as a run
                ends, even when the run fails: a fallback timer starts it again after FALLBACK_MINUTES
                in case this process dies first.
-    steam      the Steam client (Flatpak)
+    steam      the Steam client, Flatpak or native
 
 Several timed runs share one pause through the queue (`mtr queue run`), which pushes the fallback
 timer back before each run (extend_fallback). Any command can also be wrapped:
@@ -30,8 +31,9 @@ from dataclasses import dataclass
 from . import checks, machine
 from .errors import MeasureError
 
-SUNSHINE_UNIT = "app-dev.lizardbyte.app.Sunshine.service"
-# Restarts Sunshine whenever its probe fails, so it pauses with Sunshine.
+# Sunshine as a systemd user unit: the Flatpak's, or the one the native packages install.
+SUNSHINE_UNITS = ("app-dev.lizardbyte.app.Sunshine.service", "sunshine.service")
+# A timer some setups add to restart Sunshine whenever its probe fails, so it pauses with Sunshine.
 SUNSHINE_LIVENESS_TIMER = "sunshine-liveness.timer"
 STEAM_FLATPAK = "com.valvesoftware.Steam"
 FALLBACK_MINUTES = 10
@@ -78,9 +80,10 @@ class Sunshine:
         self.units: list[str] = []
         self.armed = 0
         self.fallback = ""
+        self.main = next((u for u in SUNSHINE_UNITS if _unit_active(u)), SUNSHINE_UNITS[0])
 
     def is_running(self) -> bool:
-        return _unit_active(SUNSHINE_UNIT)
+        return _unit_active(self.main)
 
     def arm(self) -> None:
         """(Re)start the fallback timer, FALLBACK_MINUTES from now. A batch calls this before each run."""
@@ -95,7 +98,7 @@ class Sunshine:
 
     def stop(self) -> bool:
         global _armed_sunshine
-        self.units = [u for u in (SUNSHINE_UNIT, SUNSHINE_LIVENESS_TIMER) if _unit_active(u)]
+        self.units = [u for u in (self.main, SUNSHINE_LIVENESS_TIMER) if _unit_active(u)]
         self.arm()
         _armed_sunshine = self
         _run(["systemctl", "--user", "stop", *reversed(self.units)])
@@ -105,9 +108,9 @@ class Sunshine:
         # ExecStartPre sleeps, so wait for "active". Only a confirmed start cancels the fallback timer.
         for attempt in range(2):
             if attempt:
-                _run(["systemctl", "--user", "reset-failed", SUNSHINE_UNIT])
+                _run(["systemctl", "--user", "reset-failed", self.main])
             _run(["systemctl", "--user", "start", *self.units], timeout=START_TIMEOUT_S)
-            if _wait_until(lambda: _unit_active(SUNSHINE_UNIT), START_TIMEOUT_S):
+            if _wait_until(lambda: _unit_active(self.main), START_TIMEOUT_S):
                 _run(["systemctl", "--user", "stop", f"{self.fallback}.timer"])
                 return True
         return False
@@ -125,19 +128,26 @@ def extend_fallback() -> None:
 
 
 class Steam:
+    """The Steam client, as a Flatpak or a native install."""
+
+    def __init__(self) -> None:
+        self.flatpak = bool(shutil.which("flatpak")) and _run(["flatpak", "info", STEAM_FLATPAK])
+        self.cmd = ["flatpak", "run", STEAM_FLATPAK] if self.flatpak else [shutil.which("steam") or "steam"]
+
     def is_running(self) -> bool:
         return "Steam" in checks.running_blockers()
 
     def stop(self) -> bool:
-        _run(["flatpak", "run", STEAM_FLATPAK, "-shutdown"], timeout=STOP_TIMEOUT_S)
+        _run([*self.cmd, "-shutdown"], timeout=STOP_TIMEOUT_S)
         if _wait_gone("Steam"):
             return True
-        _run(["flatpak", "kill", STEAM_FLATPAK])
+        if self.flatpak:
+            _run(["flatpak", "kill", STEAM_FLATPAK])
         return _wait_gone("Steam")
 
     def start(self) -> bool:
         # A transient user service: it gets the session's display and lives outside this process tree.
-        return _run(["systemd-run", "--user", "--collect", "flatpak", "run", STEAM_FLATPAK, "-silent"])
+        return _run(["systemd-run", "--user", "--collect", *self.cmd, "-silent"])
 
 
 def _sunshine() -> Program:

@@ -120,7 +120,8 @@ def main(argv: list[str]) -> int:
         if tool["dirty"]:
             warnings.append("tools/measure has uncommitted changes: records measured now can't be submitted")
         if public is False:
-            warnings.append("HEAD isn't on a remote branch. Records must come from a public commit (git pull, or push your adapter's branch)")
+            warnings.append("HEAD isn't on github.com/modelsthatrun/runner yet. Records must come from a commit there: `git pull`, "
+                            "or for a new adapter, wait until its pull request is merged")
 
     nvcc = None
     try:
