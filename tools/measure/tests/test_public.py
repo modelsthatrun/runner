@@ -148,9 +148,14 @@ def test_the_timing_images_count_toward_a_modified_checkout(monkeypatch):
     assert "timing" in status and "tools/measure" in status and "models/rf-detr" in status
 
 
-def test_submit_without_a_sign_in_asks_for_one(config, capsys):
+def test_submit_without_a_sign_in_asks_for_one(config, tmp_path):
+    # Its own model with a record, so the test doesn't depend on what this checkout has measured.
+    model = tmp_path / "models" / "fake"
+    (model / "runs").mkdir(parents=True)
+    (model / "adapter.py").write_text('TASK = "object-detection"\nSIZES = ["s"]\n')
+    (model / "runs" / "s.json").write_text("{}")
     with pytest.raises(errors.MeasureError) as e:
-        submit.cmd_submit(["rf-detr"])
+        submit.cmd_submit([str(model)])
     assert e.value.code == "AUTH"
 
 
