@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 400" width="1280" height="400" role="img" aria-labelledby="t d">
+  <title id="t">mtr, the ModelsThatRun runner</title>
+  <desc id="d">Measure open models on your own GPU by one protocol. A stack of task layers fans out above one photo: detection, segmentation, matting, depth, pose and chat.</desc>
+  <defs>
+    <radialGradient id="glow-blue" cx="0.72" cy="0.3" r="0.5">
+      <stop offset="0" stop-color="#4c9bff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#4c9bff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow-violet" cx="0.9" cy="0.85" r="0.45">
+      <stop offset="0" stop-color="#a77bff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#a77bff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow-cyan" cx="0.12" cy="0.95" r="0.5">
+      <stop offset="0" stop-color="#3fd7e8" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#3fd7e8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="photo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2a3a40"/>
+      <stop offset="1" stop-color="#15232a"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="400" rx="18" fill="#0b1519"/>
+  <rect width="1280" height="400" rx="18" fill="url(#glow-blue)"/>
+  <rect width="1280" height="400" rx="18" fill="url(#glow-violet)"/>
+  <rect width="1280" height="400" rx="18" fill="url(#glow-cyan)"/>
+  <rect x="0.5" y="0.5" width="1279" height="399" rx="18" fill="none" stroke="#24363d"/>
+
+  <!-- Brand -->
+  <g transform="translate(72 70)">
+    <path d="M0 26 L15 34 L30 26 L15 18 Z" fill="#3fd7e8"/>
+    <path d="M0 17 L15 25 L30 17 L15 9 Z" fill="#a77bff"/>
+    <path d="M0 8 L15 16 L30 8 L15 0 Z" fill="#4c9bff"/>
+    <text x="44" y="23" fill="#8aa3a9" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14" letter-spacing="3">MODELSTHATRUN / RUNNER</text>
+  </g>
+
+  <text x="68" y="214" fill="#e3eef0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="124" font-weight="600" letter-spacing="-4">mtr</text>
+  <text x="72" y="262" fill="#c3d3d6" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="25">Measure open models on your own GPU.</text>
+  <text x="72" y="296" fill="#c3d3d6" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="25">One protocol, every number labelled.</text>
+
+  <!-- Measured vs community grammar -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" letter-spacing="1.5">
+    <rect x="72" y="326" width="222" height="30" rx="4" fill="#e3eef0"/>
+    <rect x="86" y="337" width="9" height="9" fill="#0b1519"/>
+    <text x="104" y="346" fill="#0b1519">MEASURED · RTX 4090</text>
+    <rect x="308" y="326.5" width="226" height="29" rx="4" fill="none" stroke="#8aa3a9" stroke-dasharray="2 3"/>
+    <circle cx="326.5" cy="341" r="4.5" fill="none" stroke="#c3d3d6" stroke-dasharray="1.5 1.5"/>
+    <text x="340" y="346" fill="#c3d3d6">COMMUNITY · YOUR GPU</text>
+  </g>
+
+  <!-- Exploded view: one photo, its task outputs fanned out above it -->
+  <g stroke-width="1.6">
+    <path d="M800 336 L960 370 L1120 336 L960 302 Z" fill="url(#photo)" stroke="#5d7177"/>
+    <path d="M884 342 L930 328 L984 344 L936 358 Z" fill="#3a4c52" stroke="none"/>
+    <circle cx="1012" cy="332" r="9" fill="#4a5d63" stroke="none"/>
+    <path d="M800 284 L960 318 L1120 284 L960 250 Z" fill="#c5e05a" fill-opacity="0.08" stroke="#c5e05a"/>
+    <path d="M800 238 L960 272 L1120 238 L960 204 Z" fill="#ff5fa2" fill-opacity="0.08" stroke="#ff5fa2"/>
+    <path d="M800 192 L960 226 L1120 192 L960 158 Z" fill="#f3a03a" fill-opacity="0.09" stroke="#f3a03a"/>
+    <path d="M800 146 L960 180 L1120 146 L960 112 Z" fill="#3fd7e8" fill-opacity="0.09" stroke="#3fd7e8"/>
+    <path d="M800 100 L960 134 L1120 100 L960 66 Z" fill="#a77bff" fill-opacity="0.1" stroke="#a77bff"/>
+    <path d="M800 54 L960 88 L1120 54 L960 20 Z" fill="#4c9bff" fill-opacity="0.12" stroke="#4c9bff"/>
+    <!-- a detection box on the top layer -->
+    <path d="M918 52 L952 63 L986 52 L952 41 Z" fill="none" stroke="#4c9bff" stroke-width="2"/>
+  </g>
+
+  <!-- Callouts -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="11.5" letter-spacing="1.6">
+    <g stroke="#3a5157" stroke-width="1">
+      <line x1="1120" y1="54" x2="1146" y2="54"/>
+      <line x1="1120" y1="100" x2="1146" y2="100"/>
+      <line x1="1120" y1="146" x2="1146" y2="146"/>
+      <line x1="1120" y1="192" x2="1146" y2="192"/>
+      <line x1="1120" y1="238" x2="1146" y2="238"/>
+      <line x1="1120" y1="284" x2="1146" y2="284"/>
+      <line x1="1120" y1="336" x2="1146" y2="336"/>
+    </g>
+    <text x="1152" y="58" fill="#4c9bff">DETECTION</text>
+    <text x="1152" y="104" fill="#a77bff">SEGMENT</text>
+    <text x="1152" y="150" fill="#3fd7e8">MATTING</text>
+    <text x="1152" y="196" fill="#f3a03a">DEPTH</text>
+    <text x="1152" y="242" fill="#ff5fa2">POSE</text>
+    <text x="1152" y="288" fill="#c5e05a">CHAT</text>
+    <text x="1152" y="340" fill="#8aa3a9">PHOTO</text>
+  </g>
+</svg>
