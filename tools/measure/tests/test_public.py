@@ -238,3 +238,34 @@ def test_golden_submissions_match_their_fixtures():
             path.parent.mkdir(exist_ok=True)
             path.write_text(text)
         assert path.read_text() == text, f"{name} changed; rerun with MTR_UPDATE_FIXTURES=1 and check community.test.ts"
+
+
+def test_a_streaming_host_on_the_gpu_gets_the_pause_hook_tip(config):
+    busy = checks.before_run([checks.GpuProcess(7, "C", 300, "sunshine")], checks.Samples([600 * 2**20] * 200, [5.0] * 199, [0] * 200))
+    assert busy.codes == ["GPU_BUSY"] and 'pause = ["sunshine"]' in busy.errors[0]
+    other = checks.before_run([checks.GpuProcess(8, "C", 300, "python3")], checks.Samples([600 * 2**20] * 200, [5.0] * 199, [0] * 200))
+    assert "pause =" not in other.errors[0]
+
+
+def test_each_model_names_the_cuda_its_environment_needs():
+    assert machine.cuda_of_lock(ROOT / "models" / "rf-detr" / "uv.lock") == "13.0"
+    assert machine.cuda_of_lock(ROOT / "models" / "gtr" / "uv.lock") == "12.8"
+    assert main.model_cuda(ROOT / "models" / "qwen3") is None  # llama.cpp is built for the local GPU
+    assert machine.cuda_fits("12.8", "13.0") and not machine.cuda_fits("13.0", "12.4") and machine.cuda_fits("13.0", None)
+    assert machine.driver_advice("13.0") == "NVIDIA driver 580 or newer"
+
+
+def test_a_model_the_driver_cannot_run_stops_before_anything_downloads(monkeypatch):
+    monkeypatch.setattr(machine, "driver_cuda", lambda: "12.4")
+    with pytest.raises(errors.MeasureError) as e:
+        main.run_in_model("check", ROOT / "models" / "rf-detr", ["--size", "nano"])
+    assert e.value.code == "UNSUPPORTED" and "580" in str(e.value)
+
+
+def test_submit_without_records_says_to_measure_first(config, tmp_path, monkeypatch):
+    model = tmp_path / "models" / "fake"
+    model.mkdir(parents=True)
+    (model / "adapter.py").write_text('TASK = "object-detection"\nSIZES = ["s"]\n')
+    with pytest.raises(errors.MeasureError) as e:
+        submit.cmd_submit([str(model)])
+    assert e.value.code == "NOT_SUBMITTABLE" and "mtr bench" in str(e.value)

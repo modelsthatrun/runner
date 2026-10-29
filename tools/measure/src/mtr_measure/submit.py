@@ -93,6 +93,12 @@ def github_device_flow(client_id: str) -> str:
     if status != 200 or "device_code" not in start:
         raise MeasureError("AUTH", f"GitHub didn't start the sign-in: {start.get('error_description') or start.get('error') or status}")
     print(f"Open {start['verification_uri']} and enter the code {start['user_code']}", flush=True)
+    try:  # on a desktop, open the page; elsewhere the line above is enough
+        import webbrowser
+
+        webbrowser.open(start["verification_uri"])
+    except Exception:
+        pass
     print("Waiting for you to approve it on GitHub…", flush=True)
     interval = int(start.get("interval", 5))
     deadline = time.monotonic() + int(start.get("expires_in", 900))
@@ -241,12 +247,14 @@ def cmd_submit(argv: list[str]) -> int:
     model_dir = args.model_dir
     if not (model_dir / "adapter.py").is_file():
         raise MeasureError("USAGE", f"No model {str(model_dir)!r}. `mtr models` lists them.")
+    chosen = [(s, f) for s, f in records(model_dir) if not args.sizes or s in args.sizes]
+    if not records(model_dir):
+        raise MeasureError("NOT_SUBMITTABLE", f"No run records for {model_dir.name} yet. Measure it first: `mtr bench {model_dir.name}`")
     c = credentials()
     if not c and not args.dry_run:
         raise MeasureError("AUTH", f"Not signed in to {inbox()}")
     login = c["login"] if c else "(not signed in)"
 
-    chosen = [(s, f) for s, f in records(model_dir) if not args.sizes or s in args.sizes]
     if args.sizes and len(chosen) < len(args.sizes):
         missing = sorted(set(args.sizes) - {s for s, _ in chosen})
         raise MeasureError("NOT_SUBMITTABLE", f"No run record for {', '.join(missing)}. Measure it with `mtr run`")
@@ -273,8 +281,9 @@ def cmd_submit(argv: list[str]) -> int:
     if not todo:
         return emit("OK", "Nothing new to send" + (f" ({', '.join(skipped)} already sent)" if skipped else ""), {"skipped": skipped})
 
-    print(f"These go to {inbox()} as {login}. Once reviewed, they are public on modelsthatrun.dev with your GitHub login,")
-    print(f"and dedicated to the public domain ({LICENSE}). No image, path, host name or IP address is sent.\n")
+    print(f"These go to {inbox()} as {login}. Once accepted, they show on the model's page at modelsthatrun.dev")
+    print(f"with your GitHub login, and they are dedicated to the public domain ({LICENSE}).")
+    print("No image, path, host name or IP address is sent.\n")
     for size, _, body in todo:
         print(preview(login, model_dir.name, size, body["record"]))
     if args.dry_run:

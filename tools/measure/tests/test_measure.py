@@ -161,7 +161,7 @@ def test_checks_before_run(monkeypatch):
     assert any("SomeGame" in e for e in checks.before_run([game], quiet).errors)
     assert checks.before_run([], samples([600] * 200, util=30)).errors
     assert checks.before_run([], samples([600, 800] * 100)).errors
-    assert checks.before_run([], samples([2000] * 200)).warnings
+    assert checks.before_run([], samples([3000] * 200)).warnings
 
 
 def test_checks_after_run():

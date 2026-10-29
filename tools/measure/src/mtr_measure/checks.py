@@ -17,9 +17,9 @@ from .gpu import MIB, GpuProcess, Samples, process_name
 # name. Only the hooks in machine.toml count: elsewhere these are ordinary programs.
 PAUSABLE_PROGRAMS = {"sunshine": "Sunshine streaming host", "steam": "Steam"}
 
-# A desktop on the measuring GPU holds some memory while idle: 814-818 MiB on the reference machine
-# (Xorg, gnome-shell and a few apps). Above this, something else holds the GPU.
-BASELINE_WARN_MIB = 1024
+# A desktop on the measuring GPU holds some memory while idle: about 0.8 GiB on the reference machine
+# (Xorg, gnome-shell and a few apps), more with a browser open. Above this, it's worth knowing what holds it.
+BASELINE_WARN_MIB = 2048
 # The idle baseline before and after the run may differ by this much before the peak is suspect.
 DRIFT_LIMIT_MIB = 64
 # Device-level used memory may move by this much within the one-second baseline window.
@@ -46,6 +46,15 @@ class Report:
     def error(self, code: str, message: str) -> None:
         self.errors.append(message)
         self.codes.append(code)
+
+
+def pause_tip(name: str) -> str:
+    """For a program a pause hook can stop (a streaming host, a game launcher), how to have timed runs pause it."""
+    key = next((k for k in PAUSABLE_PROGRAMS if name.lower().startswith(k)), None)
+    if not key:
+        return ""
+    return (f" Timed runs can pause it and start it again: put pause = [\"{key}\"] in "
+            f"{machine.config_dir() / 'machine.toml'}")
 
 
 def blocking_programs() -> dict[str, str]:
@@ -84,7 +93,7 @@ def before_run(procs: list[GpuProcess], baseline: Samples, cpu_others: float | N
     me = os.getpid()
     others = [p for p in procs if "C" in p.kind and p.pid != me and not _blocking(p.name)]
     for p in others:
-        r.error("GPU_BUSY", f"Another compute process holds the GPU: {p.name} (pid {p.pid}). Stop it before measuring.")
+        r.error("GPU_BUSY", f"Another compute process holds the GPU: {p.name} (pid {p.pid}). Stop it before measuring.{pause_tip(p.name)}")
 
     base_mib = baseline.median_bytes / MIB
     r.lines.append(
@@ -92,7 +101,8 @@ def before_run(procs: list[GpuProcess], baseline: Samples, cpu_others: float | N
         f"{len(baseline.used)} samples, max gap {baseline.max_gap_ms:.1f} ms"
     )
     if base_mib > BASELINE_WARN_MIB:
-        r.warnings.append(f"The idle baseline is {base_mib:.0f} MiB, above the usual {BASELINE_WARN_MIB} MiB. Check what else holds the GPU.")
+        r.warnings.append(f"Other programs hold {base_mib:.0f} MiB of GPU memory. The VRAM peak counts only what the model adds, "
+                          "but the model has that much less room.")
     if baseline.spread_mib > SPREAD_LIMIT_MIB:
         r.error("GPU_BUSY", f"Idle device memory moved by {baseline.spread_mib:.0f} MiB within a second. Something else is using the GPU.")
     util = sum(baseline.utilization) / max(len(baseline.utilization), 1)

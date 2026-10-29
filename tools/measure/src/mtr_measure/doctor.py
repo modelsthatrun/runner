@@ -21,6 +21,8 @@ from .errors import MeasureError, emit
 
 # A timed run of a large model needs its weights, its environment and room to spare.
 DISK_WARN_GIB = 30
+# The oldest CUDA toolkit whose nvcc builds for each compute capability (llama.cpp, language models).
+NVCC_FOR_CC = {"12.0": "12.8", "10.0": "12.8", "9.0": "12.0", "8.9": "11.8"}
 
 
 def line(ok: bool | None, what: str, detail: str = "") -> None:
@@ -80,9 +82,25 @@ def main(argv: list[str]) -> int:
             warnings.append(f"GPU {i} runs below its default power limit; records say so, and its numbers will be slower")
             line(None, f"gpu {i} power", "below the default limit: records carry it, and pages mark it")
         if info["compute_processes"]:
-            warnings.append(f"GPU {i} has compute processes: {', '.join(info['compute_processes'])}. Timed runs refuse to start while they run")
-            line(None, f"gpu {i} busy", ", ".join(info["compute_processes"]))
+            tips = "".join(checks.pause_tip(n) for n in info["compute_processes"])
+            warnings.append(f"GPU {i} has compute processes: {', '.join(info['compute_processes'])}. Timed runs refuse to start while they run.{tips}")
+            line(None, f"gpu {i} busy", ", ".join(info["compute_processes"]) + (f".{tips}" if tips else ""))
     facts["gpus"] = gpus
+
+    # Each model's environment is built for one CUDA version; the driver must support it.
+    from .main import adapters, model_cuda
+
+    have = machine.driver_cuda()
+    needs = {d.name: model_cuda(d) for d in adapters()}
+    too_new = sorted(n for n, c in needs.items() if not machine.cuda_fits(c, have))
+    facts["driver_cuda"] = have
+    if too_new:
+        newest = max((c for c in needs.values() if c), key=lambda c: tuple(map(int, c.split("."))))
+        line(None, "cuda", f"the driver supports CUDA up to {have}; {len(too_new)} of {len(needs)} models need more. "
+                           f"Install {machine.driver_advice(newest)} to run them all")
+        warnings.append(f"{len(too_new)} models need a newer driver than this one (CUDA up to {have}): {', '.join(too_new)}")
+    else:
+        line(True, "cuda", f"the driver supports CUDA up to {have}, enough for every model")
 
     uv = version_of([shutil.which("uv") or "uv", "--version"])
     line(bool(uv), "uv", uv or "not found: https://docs.astral.sh/uv/")
@@ -112,6 +130,18 @@ def main(argv: list[str]) -> int:
     except MeasureError:
         pass
     line(True if nvcc else None, "nvcc", nvcc or "not found: needed only for language models (llama.cpp is built once)")
+    # Building llama.cpp also needs CMake and a C++ compiler, and an nvcc new enough for the GPU.
+    for tool, why in (("cmake", "CMake"), ("c++", "a C++ compiler")):
+        if not shutil.which(tool):
+            line(None, tool, f"not found: language models need {why} to build llama.cpp once")
+            warnings.append(f"{why} is missing, so language models can't build llama.cpp")
+    if nvcc and gpus:
+        cc = max(g["compute_capability"] for g in gpus)
+        need = NVCC_FOR_CC.get(cc)
+        have = engine.nvcc_version(engine.nvcc())
+        if need and have != "unknown" and tuple(map(int, have.split("."))) < tuple(map(int, need.split("."))):
+            line(None, "nvcc", f"CUDA {have} can't build for compute {cc}; language models need CUDA {need} or newer")
+            warnings.append(f"nvcc {have} is too old for compute capability {cc}: install CUDA {need} or newer for language models")
 
     try:
         timing.image_for("object-detection")
@@ -135,7 +165,7 @@ def main(argv: list[str]) -> int:
         warnings.append(f"Other programs use {busy:.0%} of the CPU. Timed runs refuse above 15%")
 
     hooks = machine.pause_hooks()
-    line(True, "pause hooks", ", ".join(hooks) if hooks else f"none ({machine.config_dir() / 'machine.toml'} names any)")
+    line(True, "pause hooks", ", ".join(hooks) if hooks else f"none. Add them in {machine.config_dir() / 'machine.toml'} only if a streaming host or game launcher shares the GPU")
 
     from . import submit
 

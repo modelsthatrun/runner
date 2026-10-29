@@ -122,3 +122,42 @@ def provenance(model_dir: Path, inputs: list[Path] | None) -> dict:
         **record.fingerprint(model_dir),
         "input_sha256": [record.sha256_file(f) for f in inputs] if inputs is not None else None,
     }
+
+
+# The oldest Linux driver each CUDA version of the PyTorch wheels needs (NVIDIA's CUDA toolkit release notes).
+MIN_DRIVER = {"13.0": "580", "12.9": "575", "12.8": "570", "12.6": "560", "12.4": "550", "12.1": "530", "11.8": "520"}
+
+
+def cuda_of_lock(lock: Path) -> str | None:
+    """The CUDA version a model's environment runs, from the CUDA runtime its uv.lock pins, e.g. "13.0"."""
+    if not lock.is_file():
+        return None
+    found = re.search(r'^name = "nvidia-cuda-runtime(?:-cu1\d)?"\nversion = "(\d+)\.(\d+)', lock.read_text(), re.M)
+    return f"{found.group(1)}.{found.group(2)}" if found else None
+
+
+def driver_cuda() -> str | None:
+    """The newest CUDA version the installed NVIDIA driver supports, e.g. "13.0". None without a driver."""
+    try:
+        import pynvml
+
+        pynvml.nvmlInit()
+        try:
+            v = pynvml.nvmlSystemGetCudaDriverVersion_v2()
+        finally:
+            pynvml.nvmlShutdown()
+    except Exception:
+        return None
+    return f"{v // 1000}.{v % 1000 // 10}"
+
+
+def cuda_fits(need: str | None, have: str | None) -> bool:
+    """Whether a driver that supports CUDA `have` runs an environment built for CUDA `need`. Unknown counts as yes."""
+    if not need or not have:
+        return True
+    return tuple(map(int, need.split("."))) <= tuple(map(int, have.split(".")))
+
+
+def driver_advice(need: str) -> str:
+    want = MIN_DRIVER.get(need)
+    return f"NVIDIA driver {want} or newer" if want else f"an NVIDIA driver that supports CUDA {need}"

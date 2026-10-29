@@ -32,8 +32,8 @@ import sys
 from pathlib import Path
 
 from . import adapter as ad
-from . import paths, record, timing
-from .errors import MeasureError, emit, parse_result
+from . import machine, paths, record, timing
+from .errors import CODES, MeasureError, emit, parse_result
 
 MODEL_COMMANDS = ("check", "run", "eval", "outputs")
 TOOL_COMMANDS = ("queue", "new", "clean")
@@ -74,8 +74,19 @@ def model_command(cmd: str, model_dir: Path, rest: list[str]) -> list[str]:
     return [*uv, "python", "-m", module, *([] if cmd == "outputs" else [cmd]), *args]
 
 
+def model_cuda(model_dir: Path) -> str | None:
+    """The CUDA version of the model's environment. None for a language model, whose llama.cpp is built locally."""
+    if ad.kind_of_file(model_dir / "adapter.py") == "llm":
+        return None
+    return machine.cuda_of_lock(project_for(model_dir) / "uv.lock")
+
+
 def run_in_model(cmd: str, model_dir: Path, rest: list[str]) -> int:
     project = project_for(model_dir)
+    need, have = model_cuda(model_dir), machine.driver_cuda()
+    if not machine.cuda_fits(need, have):
+        raise MeasureError("UNSUPPORTED", f"{model_dir.name}'s environment uses CUDA {need}, and this driver supports CUDA up to {have}. "
+                                          f"Install {machine.driver_advice(need)}, or pick a model whose CUDA fits (`mtr models`)")
     if cmd == "check" and (project / "uv.lock").is_file() and project != paths.tool_dir() and not lock_is_current(project):
         raise MeasureError("LOCK_STALE", f"{project / 'uv.lock'} doesn't match {project / 'pyproject.toml'}")
     env = dict(os.environ)
@@ -159,19 +170,28 @@ def cmd_models(argv: list[str]) -> int:
 
     Parser(prog="mtr models", description="List the models this checkout can measure. The result line holds the same as JSON.").parse_args(argv)
     rows = []
+    have = machine.driver_cuda()
     for d in adapters():
         f = d / "adapter.py"
         sizes = ad.sizes_of_file(f)
         measured = sorted(local_runs(d), key=lambda s: sizes.index(s) if sizes and s in sizes else len(sizes or []))
         kind, task = ad.kind_of_file(f), ad.task_of_file(f)
-        rows.append({"id": d.name, "kind": kind, "task": task, "sizes": sizes, "measured": measured,
+        cuda = model_cuda(d)
+        rows.append({"id": d.name, "kind": kind, "task": task, "sizes": sizes, "measured": measured, "cuda": cuda,
+                     "fits_driver": machine.cuda_fits(cuda, have),
                      "timing_sha256": timing.sha_for(task) if kind == "image" else None})
     width = max(len(r["id"]) for r in rows) + 2
+    print(f"{'model':<{width}}{'kind':<7}{'task':<23}{'cuda':<8}sizes")
     for r in rows:
         sizes = ", ".join(r["sizes"] or ["see adapter.py"])
         mine = f"   measured here: {', '.join(r['measured'])}" if r["measured"] else ""
-        print(f"{r['id']:<{width}}{r['kind']:<7}{(r['task'] or '?'):<23}{sizes}{mine}")
-    print("\nnext: `mtr bench <id> --size <size>` measures one checkpoint on this GPU")
+        cuda = (r["cuda"] or "local") + ("*" if not r["fits_driver"] else "")
+        print(f"{r['id']:<{width}}{r['kind']:<7}{(r['task'] or '?'):<23}{cuda:<8}{sizes}{mine}")
+    if any(not r["fits_driver"] for r in rows):
+        print(f"\n* needs a newer driver: this one supports CUDA up to {have}")
+    print("\ncuda: what the model's environment is built for; `local` is llama.cpp, built for your GPU with your nvcc.")
+    print("Start with the smallest size. A size that doesn't fit your GPU's memory stops with OOM.")
+    print("next: `mtr bench <id> --size <size>` measures one checkpoint on this GPU")
     return emit("OK", f"{len(rows)} models", {"models": rows})
 
 
@@ -223,7 +243,10 @@ def cmd_bench(argv: list[str]) -> int:
     if done:
         print(f"\nnext: `mtr submit {model_dir.name}` sends {'it' if len(done) == 1 else 'them'} for review")
     if len(done) < len(results):
-        return emit("FAILED", f"{len(done)} of {len(results)} size(s) measured; read each failure above", {"results": results})
+        # When every failure has the same cause, report that code, so its hint says what to do.
+        codes = {r["code"] for r in results if r["status"] != "ok"}
+        code = next(iter(codes)) if len(codes) == 1 else "FAILED"
+        return emit(code if code in CODES else "FAILED", f"{len(done)} of {len(results)} size(s) measured; read each failure above", {"results": results})
     return emit("OK", f"All {len(results)} size(s) measured", {"results": results})
 
 
