@@ -1,9 +1,10 @@
-"""Adapter for Depth Anything V2 (Small), relative monocular depth.
+"""Adapter for Depth Anything V2, relative monocular depth.
 
 The model card loads AutoModelForDepthEstimation and its image processor from transformers, runs
 the model, and interpolates predicted_depth back to the image's size (bicubic). The output is
 relative inverse depth: larger is nearer. It runs in fp32, as the card and the original
-repository's run.py do. Only Small is listed: Base and Large are CC BY-NC 4.0.
+repository's run.py do. Small is Apache-2.0; Base and Large are CC BY-NC 4.0, so they are
+non-commercial.
 """
 
 from pathlib import Path
@@ -14,7 +15,11 @@ from transformers import AutoImageProcessor, AutoModelForDepthEstimation
 
 from mtr_measure.predictions import Depth
 
-REPOS = {"small": ("depth-anything/Depth-Anything-V2-Small-hf", "5426e4f0f36572d16453bbda7a8389317b1bef99")}
+REPOS = {
+    "small": ("depth-anything/Depth-Anything-V2-Small-hf", "5426e4f0f36572d16453bbda7a8389317b1bef99"),
+    "base": ("depth-anything/Depth-Anything-V2-Base-hf", "b1958afc87fb45a9e3746cb387596094de553ed8"),
+    "large": ("depth-anything/Depth-Anything-V2-Large-hf", "7581137eff8d4e94f6e796d3baea0e9fa79b22d2"),
+}
 
 TASK = "depth-estimation"
 SIZES = list(REPOS)

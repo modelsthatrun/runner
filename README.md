@@ -6,7 +6,7 @@
   <a href="https://github.com/modelsthatrun/runner/actions/workflows/test.yml"><img src="https://github.com/modelsthatrun/runner/actions/workflows/test.yml/badge.svg" alt="tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-3fd7e8?style=flat-square" alt="MIT license"></a>
   <img src="https://img.shields.io/badge/linux-NVIDIA%20GPU-a77bff?style=flat-square" alt="Linux with an NVIDIA GPU">
-  <img src="https://img.shields.io/badge/models-21%20families%20%C2%B7%2071%20checkpoints-c5e05a?style=flat-square" alt="21 model families, 71 checkpoints">
+  <img src="https://img.shields.io/badge/models-30%20families%20%C2%B7%20107%20checkpoints-c5e05a?style=flat-square" alt="30 model families, 107 checkpoints">
   <a href="https://docs.astral.sh/uv/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json&style=flat-square" alt="uv"></a>
 </p>
 
@@ -102,12 +102,12 @@ Results land in `models/<id>/runs/<size>.json`, with `<size>.times.json` (every 
 
 | Task | Models (sizes) |
 |---|---|
-| **Object detection** | `rf-detr` (4) · `yolo26` (5) · `d-fine` (5) · `deimv2` (4) · `rt-detrv4` (4) · `gtr` (4) · `grounding-dino` (2) · `mm-grounding-dino` (3) · `llmdet` (3) |
-| **Instance segmentation** | `rf-detr-seg` (6) · `yolo26-seg` (5) · `gtr-seg` (4) · `eomt` (2) |
+| **Object detection** | `rf-detr` (4) · `yolo26` (5) · `yolo11` (5) · `yolov8` (5) · `d-fine` (5) · `deimv2` (4) · `rt-detrv4` (4) · `gtr` (4) · `grounding-dino` (2) · `mm-grounding-dino` (3) · `llmdet` (3) |
+| **Instance segmentation** | `rf-detr-seg` (6) · `yolo26-seg` (5) · `yolo11-seg` (5) · `yolov8-seg` (5) · `gtr-seg` (4) · `eomt` (2) |
 | **Image matting** | `birefnet` (3) · `ben2` (1) |
-| **Depth estimation** | `moge-2` (3) · `depth-anything-v2` (1) |
-| **Pose estimation** | `yolo26-pose` (5) · `gtr-pose` (4) · `rf-detr-keypoint` (1) |
-| **Chat** (GGUF via llama.cpp) | `qwen3` (2) |
+| **Depth estimation** | `moge-2` (3) · `depth-anything-v2` (3) |
+| **Pose estimation** | `yolo26-pose` (5) · `yolo11-pose` (5) · `yolov8-pose` (5) · `gtr-pose` (4) · `rf-detr-keypoint` (1) |
+| **Chat** (GGUF via llama.cpp) | `qwen3` (2) · `qwen3-5` (1) · `qwen3-8` (1) · `gemma-4` (2) |
 
 `./mtr models` lists the sizes and each model's CUDA version, and marks the ones your driver can't run. To add a model, see [Adding a model](#adding-a-model).
 
