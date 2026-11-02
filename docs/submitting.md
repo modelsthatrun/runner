@@ -58,7 +58,7 @@ None of this proves a record is honest, because nobody can see your machine. It 
 ## After you submit
 
 - **Review is by hand.** It may take days, and nothing notifies you. `mtr submissions` shows each submission's state (pending, accepted, hidden or rejected) and the reviewer's note.
-- **The site isn't public yet.** Accepted results appear on modelsthatrun.dev once it opens.
+- **Accepted results appear the next time the site updates.** `mtr submissions` can say accepted a while before the model's page on modelsthatrun.dev shows the result.
 - **A sign-in lasts 90 days.** After that, `mtr login` again.
 
 ## Removing a result
