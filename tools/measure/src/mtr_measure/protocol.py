@@ -59,7 +59,11 @@ LLM_BENCHMARKS = {
     "ifeval": {"task": "ifeval", "metric": "prompt_level_strict_acc", "name": "IFEval"},
     # GSM8K: 1,319 grade-school math problems, 8 worked examples as a chat, answer "The final answer is N".
     # Headline: the last number of the answer (flexible-extract), so a missed phrase doesn't count as wrong math.
-    "gsm8k-cot": {"task": "gsm8k_cot_llama", "metric": "exact_match_flexible-extract", "name": "GSM8K, 8-shot chain of thought"},
+    # The task sets no answer limit, and lm-eval's API default of 256 tokens cut off up to a quarter of the answers of models
+    # that reason at length, so it takes IFEval's 1280. Changing it means scoring every language model again. Each eval record
+    # states its limit, and speed and VRAM don't depend on it, so PROTOCOL_VERSION stays.
+    "gsm8k-cot": {"task": "gsm8k_cot_llama", "metric": "exact_match_flexible-extract", "name": "GSM8K, 8-shot chain of thought",
+                  "max_gen_toks": 1280},
     # Left out: MMLU-Pro takes about a day per 8B checkpoint here; GPQA is gated on Hugging Face and has
     # only 198 questions; HumanEval and MBPP run the model's code, which needs a sandbox first.
 }

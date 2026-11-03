@@ -125,6 +125,7 @@ Records never carry a host name, a user name or a path.
 - **Language models.**
   - lm-evaluation-harness 0.4.13 (`tools/measure/lmeval/`) runs against the same llama.cpp build, through its chat endpoint, with the model's own chat template.
   - The suite is IFEval and GSM8K (`gsm8k_cot_llama`, 8 worked examples as a chat), with thinking off. It takes about 11 minutes per 8B checkpoint.
+  - An answer may run to 1280 tokens on both. IFEval's own configuration sets that limit. GSM8K's sets none, and lm-eval's default of 256 tokens cuts off models that reason at length, so the tool gives it the same limit. Each eval record states it in `settings.generation`.
 - **Data and evidence.**
   - Benchmark data downloads once into `~/.cache/modelsthatrun/datasets/` and is never published.
   - Raw predictions stay next to the record as evidence. The record keeps their sha256.

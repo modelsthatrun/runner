@@ -183,6 +183,8 @@ def evaluate(args, bench: dict, model_dir: Path, model_id: str, out: Path, log_p
                            f"num_concurrent={slots},max_retries=3,timeout=1800",
            "--tasks", bench["task"], "--apply_chat_template", "--seed", "0",
            "--output_path", str(work), "--log_samples"]
+    if "max_gen_toks" in bench:
+        cmd += ["--gen_kwargs", f"max_gen_toks={bench['max_gen_toks']}"]
     if args.limit:
         cmd += ["--limit", str(args.limit)]
     log(f"running lm-eval (its output: {lm_log})")
