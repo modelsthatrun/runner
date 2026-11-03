@@ -176,12 +176,11 @@ def check_interface(a: Any) -> None:
 
 
 def choose_precision(supported: list[str]) -> str:
-    """fp16 if the official code supports it, otherwise fp32 (docs/protocol.md, "Scope")."""
-    if "fp16" in supported:
-        return "fp16"
-    if "fp32" in supported:
-        return "fp32"
-    raise AdapterError(f"The protocol measures fp16 or fp32, and the adapter supports only {supported}")
+    """fp16 if the official code supports it, otherwise bf16, otherwise fp32 (docs/protocol.md, "Scope")."""
+    for precision in ("fp16", "bf16", "fp32"):
+        if precision in supported:
+            return precision
+    raise AdapterError(f"PRECISIONS must list some of {KNOWN_PRECISIONS}, got {supported}")
 
 
 def check_size(a: Any, size: str) -> None:

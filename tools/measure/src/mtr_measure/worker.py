@@ -53,6 +53,8 @@ def run(spec: dict) -> dict:
 
     if not torch.cuda.is_available():
         raise MeasureError("FAILED", "torch can't see a CUDA device")
+    if precision == "bf16" and not torch.cuda.is_bf16_supported(including_emulation=False):
+        raise MeasureError("FAILED", "This GPU only emulates bf16, and the protocol doesn't time an emulation (docs/protocol.md, \"Scope\")")
     sync = torch.cuda.synchronize
 
     t = time.perf_counter()

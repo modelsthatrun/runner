@@ -16,7 +16,7 @@ import torch
 
 TASK = "object-detection"  # the task it solves; picks the timing image (timing/timing.toml)
 SIZES = ["medium"]  # checkpoint sizes, named as the model's own README names them
-PRECISIONS = ["fp16", "fp32"]  # what the official code supports; the tool uses fp16 if listed, else fp32
+PRECISIONS = ["fp16", "fp32"]  # what the official code supports; the tool uses fp16 if listed, else bf16, else fp32. If it runs bf16, leave fp16 out
 PACKAGE = "package-name"  # the installed distribution that runs the model; its version is recorded
 INPUT = {"medium": "640x640"}  # the official default input resolution per size, WxH
 

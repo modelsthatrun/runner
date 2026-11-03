@@ -37,9 +37,11 @@ It handles two kinds of model:
 ## Scope
 
 - Inference only, batch size 1. Image models use the official default input resolution.
-- **Precision.** fp16 if the official code supports it, otherwise fp32. The precision used is always recorded.
+- **Precision.** fp16 if the official code supports it, otherwise bf16 if it does, otherwise fp32. The precision used is always recorded.
   - The adapter lists what the official code supports in `PRECISIONS`, and the tool picks the precision.
-  - If fp16 fails, the run fails. It never falls back to fp32 on its own.
+  - If the official inference runs bf16 on the GPU, the adapter lists `bf16` and leaves out `fp16`, even if fp16 could be forced.
+  - If the chosen precision fails, the run fails. It never falls back to another on its own.
+  - bf16 has to be native. On a GPU that only emulates it, the run fails.
 
 ## Latency
 

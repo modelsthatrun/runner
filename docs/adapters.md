@@ -21,6 +21,8 @@ def weight_files(size: str) -> list[pathlib.Path]: ...   # the files load() read
 def to_prediction(model, x, out): ...                # predict()'s output as the task's standard type
 ```
 
+**Precision.** The tool picks fp16 if it's listed, otherwise bf16, otherwise fp32. If the official inference runs bf16, list `bf16` and leave out `fp16`, even if fp16 could be forced. numpy can't read a bf16 tensor, so `to_prediction()` calls `.float()` before `.numpy()`.
+
 **Optional:**
 
 | Name | Use it when |

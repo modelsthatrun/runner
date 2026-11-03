@@ -23,9 +23,11 @@ def test_percentile_matches_numpy_linear():
 def test_precision_rule():
     assert ad.choose_precision(["fp32", "fp16"]) == "fp16"
     assert ad.choose_precision(["fp32"]) == "fp32"
-    assert ad.choose_precision(["bf16", "fp32"]) == "fp32"
+    assert ad.choose_precision(["bf16", "fp32"]) == "bf16"
+    assert ad.choose_precision(["bf16"]) == "bf16"
+    assert ad.choose_precision(["fp32", "bf16", "fp16"]) == "fp16"
     with pytest.raises(ad.AdapterError):
-        ad.choose_precision(["bf16"])
+        ad.choose_precision([])
 
 
 def fake_adapter(**over):
@@ -81,8 +83,9 @@ def worker_result(times):
     }
 
 
-def run(times, baseline_mib=600, peak_mib=1800, reserved_mib=300):
+def run(times, baseline_mib=600, peak_mib=1800, reserved_mib=300, precision="fp16"):
     w = worker_result(times)
+    w["precision"] = precision
     w["torch_max_reserved_bytes"] = reserved_mib * MIB
     return {"worker": w, "baseline_bytes": baseline_mib * MIB, "peak_bytes": peak_mib * MIB}
 
@@ -98,6 +101,12 @@ def test_record_passes_the_cms_schema(tmp_path: Path):
     )
     assert record.validate(rec) == []
     assert rec["kind"] == "image"
+    bf16 = record.build(
+        model="sam-2", size="tiny", weights=record.weight_entries([w]), runs=[run(times, precision="bf16")] * 3,
+        gpu_name="NVIDIA GeForce RTX 4090", driver="580.173.02", image_digest=None, warmup=10, measured="2026-10-22T10:00:00+09:00",
+    )
+    assert record.validate(bf16) == []
+    assert bf16["measurement"]["precision"] == "bf16"
     m = rec["measurement"]
     assert m["protocol"] == protocol.PROTOCOL_VERSION
     assert [r["median"] for r in m["runs"]] == [50.5, 51.5, 52.5]
