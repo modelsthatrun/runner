@@ -105,7 +105,7 @@ Results land in `models/<id>/runs/<size>.json`, with `<size>.times.json` (every 
 | **Object detection** | `rf-detr` (4) · `yolo26` (5) · `yolo11` (5) · `yolov8` (5) · `d-fine` (5) · `deimv2` (4) · `rt-detrv4` (4) · `gtr` (4) · `grounding-dino` (2) · `mm-grounding-dino` (3) · `llmdet` (3) |
 | **Instance segmentation** | `rf-detr-seg` (6) · `yolo26-seg` (5) · `yolo11-seg` (5) · `yolov8-seg` (5) · `gtr-seg` (4) · `eomt` (2) |
 | **Image matting** | `birefnet` (3) · `ben2` (1) |
-| **Depth estimation** | `moge-2` (3) · `depth-anything-v2` (3) |
+| **Depth estimation** | `moge-2` (3) · `depth-anything-v2` (3) · `depth-anything-3-mono` (1) · `depth-anything-3-metric` (1) |
 | **Pose estimation** | `yolo26-pose` (5) · `yolo11-pose` (5) · `yolov8-pose` (5) · `gtr-pose` (4) · `rf-detr-keypoint` (1) |
 | **Chat** (GGUF via llama.cpp) | `qwen3` (2) · `qwen3-5` (1) · `qwen3-8` (1) · `gemma-4` (2) |
 
