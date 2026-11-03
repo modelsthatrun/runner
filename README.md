@@ -33,7 +33,7 @@ ModelsThatRun lists open models that have public code and weights and that actua
 We measure on our RTX 4090. With `mtr` you measure the same checkpoints on your GPU, and once reviewed your results show on the model's page under **Community results**, with your GitHub name.
 
 > [!NOTE]
-> The submission inbox is open, and submissions are reviewed now. The site at modelsthatrun.dev isn't public yet; accepted results appear there when it opens.
+> The submission inbox is open, and each submission is reviewed by hand. Accepted results appear on [modelsthatrun.dev](https://modelsthatrun.dev) the next time the site updates.
 
 ## Quickstart
 
