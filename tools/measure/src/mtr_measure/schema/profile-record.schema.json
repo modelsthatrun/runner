@@ -158,7 +158,7 @@
               "bound_ms": {
                 "type": "number",
                 "minimum": 0,
-                "description": "The part of ms from launches that started right after the GPU's previous work ended: time the GPU, not the CPU, held up"
+                "description": "The part of ms that held other work up: launches the next GPU work started right after (it was queued behind them), or the call's last work, which its closing synchronize waited for"
               }
             },
             "required": [
