@@ -6,6 +6,7 @@
     mtr run <model> --size <size>                one timed measurement: models/<id>/runs/<size>.json
     mtr bench <model> [--size <size>…]           check, then run, every size (or the ones named)
     mtr eval <model> --size <size> --benchmark <name>    accuracy on a standard benchmark
+    mtr profile <model> --size <size>            GPU time by kernel, for estimates on other GPUs. Pauses nothing
     mtr results                                  your records, and which are sent
     mtr login | logout | whoami                  sign in to the inbox with GitHub
     mtr submit <model> [--size <size>…]          send your records; they show on modelsthatrun.dev once reviewed
@@ -19,7 +20,7 @@
 <model> is an id such as rf-detr (`mtr models` lists them) or a directory with adapter.py. Every command
 ends with one line, `mtr-result: {json}`, with a status, a code, a message and a hint (errors.py).
 
-check, run, eval and outputs load the model, so they run in the model's own uv environment, from its
+check, run, eval, profile and outputs load the model, so they run in the model's own uv environment, from its
 committed uv.lock. Everything else runs in the tool's environment.
 """
 
@@ -35,7 +36,7 @@ from . import adapter as ad
 from . import machine, paths, record, timing
 from .errors import CODES, MeasureError, emit, parse_result
 
-MODEL_COMMANDS = ("check", "run", "eval", "outputs")
+MODEL_COMMANDS = ("check", "run", "eval", "profile", "outputs")
 TOOL_COMMANDS = ("queue", "new", "clean")
 
 

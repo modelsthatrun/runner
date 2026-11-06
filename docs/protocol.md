@@ -132,6 +132,26 @@ Records never carry a host name, a user name or a path.
   - Benchmark data downloads once into `~/.cache/modelsthatrun/datasets/` and is never published.
   - Raw predictions stay next to the record as evidence. The record keeps their sha256.
 
+## Profiles
+
+`mtr profile <model> --size <size>` splits an image model's GPU time by kernel. It writes `models/<id>/profiles/<size>.json`, a profile record. ModelsThatRun uses it to estimate speed on other GPUs: each kernel's time is scaled by the unit it ran on, with the other GPU's spec sheet, and the CPU's part of a call is held as it is.
+
+- **Not a timed run.** Nothing is paused. It stops if the idle GPU is more than 10% busy, and warns about other processes that hold the GPU.
+- **Same setup as speed.** It uses the same adapter, environment, precision and input as `mtr run`.
+- **The calls.**
+  1. Load the checkpoint, then 10 warm-up calls.
+  2. 50 plain calls, timed as in a timed run, without the profiler.
+  3. 23 calls under `torch.profiler`. The first 3 are dropped.
+- **Each profiled call is one window.** It is closed by a synchronize, so every kernel and copy it started ran inside it. Per kernel name, the record keeps the median over the windows of:
+  - its launches
+  - its GPU time
+  - its GPU-bound time: the time of launches that the GPU went straight on from, because the next work was already queued (started within 2 µs) or the call was waiting for it
+- **What it records about the build.** It records the PyTorch build's GPU architectures and the settings that decide whether fp32 work runs on tensor cores. Those settings are TF32 for matmuls and for cuDNN, and the fp32 matmul precision. It reads them after the model has loaded.
+- **Its limits.**
+  - Kernel times come from the GPU's own clock, so the profiler's overhead doesn't change them.
+  - The overhead does slow the CPU, so fewer launches look GPU-bound than without it.
+  - Language models need no profile.
+
 ## Outputs
 
 `mtr outputs` draws a checkpoint's outputs on a task's test images, for the catalog's galleries. The catalog's maintainers run it: the shared test set isn't part of this repository, and submissions don't include outputs.

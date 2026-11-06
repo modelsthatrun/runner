@@ -1,10 +1,11 @@
-"""mtr check | run | eval | queue | new | clean: check, measure and score one checkpoint (docs/protocol.md).
+"""mtr check | run | eval | profile | queue | new | clean: check, measure and score one checkpoint (docs/protocol.md).
 
 The `mtr` command (main.py) runs these in the model's own uv environment:
 
     mtr check <model> --size <size> [--input <file>]     does the adapter work? Pauses nothing, writes no record
     mtr run <model> --size <size> [--input <file>]       one timed measurement: models/<id>/runs/<size>.json
     mtr eval <model> --size <size> --benchmark <name>    accuracy on a standard benchmark. Pauses nothing
+    mtr profile <model> --size <size> [--input <file>]   GPU time by kernel, for estimates on other GPUs. Pauses nothing
     mtr queue add | list | run | drop                    batch timed runs into one pause (runqueue.py)
     mtr new <id> [--kind image|llm]                      a model directory from the template
     mtr clean <model> [--yes]                            remove the model's environment and weights
@@ -38,7 +39,7 @@ from .errors import MeasureError, emit
 from .gpu import MIB, Gpu, Poller, sample_for
 
 BASELINE_SECONDS = 1.0
-SUBCOMMANDS = ("check", "run", "eval", "queue", "new", "clean")
+SUBCOMMANDS = ("check", "run", "eval", "profile", "queue", "new", "clean")
 
 
 class Parser(argparse.ArgumentParser):
@@ -444,6 +445,10 @@ def main(argv: list[str] | None = None) -> int:
             from . import eval as evaluate
 
             return evaluate.main(rest, log)
+        if cmd == "profile":
+            from . import profile
+
+            return profile.cmd_profile(rest, log)
         from . import manage
 
         return manage.main(cmd, rest, log)

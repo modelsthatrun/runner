@@ -11,6 +11,7 @@ Instructions for AI coding agents working in this repository: Claude Code, Codex
 1. **Never write or edit a record by hand.** Records come only from the tool:
    - `models/*/runs/*.json` and `*.times.json`
    - `models/*/evals/**`
+   - `models/*/profiles/*.json`
    - `.check/*.json`
    
    If a record is wrong, measure again. A hand-edited record fails the inbox's checks, and it would be a false claim under the user's name.
@@ -22,7 +23,7 @@ Instructions for AI coding agents working in this repository: Claude Code, Codex
    - Never run `mtr login` yourself, even when a result's hint says to. It needs the user's browser and signs in as them. On `AUTH`, ask the user to run `./mtr login`.
 4. **Ask before a timed run on a machine someone is using.**
    - `mtr run`, `mtr bench` and `mtr queue run` hold the GPU and need a quiet CPU for a few minutes each. Pause hooks in `machine.toml` may stop the user's streaming or game launcher for that time.
-   - `mtr check` and `mtr eval` pause nothing.
+   - `mtr check`, `mtr eval` and `mtr profile` pause nothing.
 5. **Never close the user's programs.** That covers games, videos, browsers and training jobs. If the GPU or the CPU is busy (`GPU_BUSY`, `CPU_BUSY`, `VRAM_LOW`), say which program it is and let the user decide.
 6. **Never lower settings to make a model fit.** `OOM` at the protocol's settings is a result: the checkpoint doesn't run on this GPU.
 7. **Licenses come from primary sources only.** Take them from the repository's LICENSE file and from the model card of that exact checkpoint, with the URL and the date you read them. Never use blogs, vendor posts or memory.

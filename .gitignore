@@ -5,10 +5,12 @@ models/*/meta.toml
 models/*/runs/
 models/*/outputs/
 models/*/evals/
+models/*/profiles/
 models/*/.check/
 tools/measure/examples/*/runs/
 tools/measure/examples/*/outputs/
 tools/measure/examples/*/evals/
+tools/measure/examples/*/profiles/
 tools/measure/examples/*/.check/
 # The queue of timed runs, local to one machine
 tools/measure/queue.json

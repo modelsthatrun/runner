@@ -1,0 +1,408 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://modelsthatrun.dev/schema/profile-record.schema.json",
+  "$comment": "Generated from ModelsThatRun's schema package. Do not edit by hand.",
+  "title": "Profile record",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "const": "profile"
+    },
+    "model": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "size": {
+      "type": "string",
+      "minLength": 1
+    },
+    "weights": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "file",
+          "bytes",
+          "sha256"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "profile": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Version of the profiling procedure (mtr_measure/profile.py)"
+        },
+        "precision": {
+          "type": "string",
+          "enum": [
+            "fp32",
+            "fp16",
+            "bf16"
+          ]
+        },
+        "input": {
+          "type": "string",
+          "pattern": "^\\d+x\\d+$"
+        },
+        "calls": {
+          "type": "object",
+          "properties": {
+            "warmup": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "plain": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "profiled": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "warmup",
+            "plain",
+            "profiled"
+          ],
+          "additionalProperties": false
+        },
+        "wall_ms": {
+          "type": "object",
+          "properties": {
+            "median": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "p90": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "required": [
+            "median",
+            "p90"
+          ],
+          "additionalProperties": false,
+          "description": "Wall time per call without the profiler, synchronized like a timed run"
+        },
+        "profiled_wall_ms": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Median wall time per call under the profiler"
+        },
+        "gpu_busy_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Median time per call during which any kernel or copy ran"
+        },
+        "bound_gap_us": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "A launch that started within this gap after the previous work ended counts as GPU-bound"
+        },
+        "kernels": {
+          "maxItems": 5000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Kernel name as CUPTI reports it, or the copy kind (e.g. \"Memcpy HtoD (Pageable -> Device)\")"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "kernel",
+                  "memcpy",
+                  "memset"
+                ]
+              },
+              "count": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Launches per call, median over the profiled calls"
+              },
+              "ms": {
+                "type": "number",
+                "minimum": 0,
+                "description": "GPU time per call, median over the profiled calls"
+              },
+              "bound_ms": {
+                "type": "number",
+                "minimum": 0,
+                "description": "The part of ms from launches that started right after the GPU's previous work ended: time the GPU, not the CPU, held up"
+              }
+            },
+            "required": [
+              "name",
+              "kind",
+              "count",
+              "ms",
+              "bound_ms"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "env": {
+          "type": "object",
+          "properties": {
+            "gpu": {
+              "type": "string",
+              "minLength": 1
+            },
+            "driver": {
+              "type": "string",
+              "minLength": 1
+            },
+            "cuda": {
+              "type": "string",
+              "minLength": 1
+            },
+            "torch": {
+              "type": "string",
+              "minLength": 1
+            },
+            "cudnn": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "python": {
+              "type": "string",
+              "minLength": 1
+            },
+            "package": {
+              "type": "string",
+              "minLength": 1
+            },
+            "arch_list": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "torch.cuda.get_arch_list(): the GPU architectures the torch build has kernels for"
+            },
+            "flags": {
+              "type": "object",
+              "properties": {
+                "matmul_allow_tf32": {
+                  "type": "boolean"
+                },
+                "cudnn_allow_tf32": {
+                  "type": "boolean"
+                },
+                "float32_matmul_precision": {
+                  "type": "string"
+                },
+                "cudnn_benchmark": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "matmul_allow_tf32",
+                "cudnn_allow_tf32",
+                "float32_matmul_precision",
+                "cudnn_benchmark"
+              ],
+              "additionalProperties": false,
+              "description": "PyTorch settings after the model loaded, which decide whether fp32 work runs on tensor cores"
+            },
+            "cpu": {
+              "description": "CPU model, from /proc/cpuinfo",
+              "type": "string"
+            },
+            "gpu_memory_mib": {
+              "description": "Total GPU memory, from NVML",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "compute_capability": {
+              "description": "CUDA compute capability, e.g. 8.9",
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+$"
+            },
+            "os": {
+              "description": "Kernel and C library, e.g. Linux 6.2.6 glibc 2.35",
+              "type": "string"
+            },
+            "power_limit_w": {
+              "description": "Enforced GPU power limit in watts, from NVML",
+              "anyOf": [
+                {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "power_default_w": {
+              "description": "Default GPU power limit in watts, from NVML",
+              "anyOf": [
+                {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "gpu",
+            "driver",
+            "cuda",
+            "torch",
+            "cudnn",
+            "python",
+            "package",
+            "arch_list",
+            "flags"
+          ],
+          "additionalProperties": false
+        },
+        "profiled": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        }
+      },
+      "required": [
+        "version",
+        "precision",
+        "input",
+        "calls",
+        "wall_ms",
+        "profiled_wall_ms",
+        "gpu_busy_ms",
+        "bound_gap_us",
+        "kernels",
+        "env",
+        "profiled"
+      ],
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "tool": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "const": "mtr"
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "commit": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{40}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "git commit of the tool checkout, null outside git"
+            },
+            "dirty": {
+              "description": "Whether tools/measure or the model directory had uncommitted changes",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "name",
+            "version",
+            "commit",
+            "dirty"
+          ],
+          "additionalProperties": false
+        },
+        "adapter_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "lock_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "sha256 of the model environment's uv.lock"
+        },
+        "input_sha256": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "sha256 of each input file, for image models; null for language models"
+        }
+      },
+      "required": [
+        "tool",
+        "adapter_sha256",
+        "lock_sha256",
+        "input_sha256"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "kind",
+    "model",
+    "size",
+    "weights",
+    "profile"
+  ],
+  "additionalProperties": false
+}
