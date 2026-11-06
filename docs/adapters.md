@@ -1,7 +1,7 @@
 # Adapters
 
 Every model family has one adapter, `models/<id>/adapter.py`. It tells the shared tool how to load a checkpoint and how to make one call from input to output, the way the model's official README does. The tool knows nothing else about the model.
-- `mtr check`, `mtr run` and `mtr eval` use the adapter.
+- `mtr check`, `mtr run`, `mtr eval` and `mtr profile` use the adapter.
 - `mtr outputs` uses the same adapter to draw the model's outputs.
 - The interface is defined in `tools/measure/src/mtr_measure/adapter.py`.
 - The starting points are `models/_template/` and `models/_template-llm/`, copied by `mtr new <id>`.
