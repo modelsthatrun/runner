@@ -88,7 +88,7 @@ def cmd_add(argv: list[str], log: Log) -> int:
     p.add_argument("model_dir", type=paths.model_dir, help="The model: an id such as rf-detr, or its directory")
     p.add_argument("--size", required=True)
     p.add_argument("--input", dest="inputs", type=Path, action="append", default=[],
-                   help="Image models: the input file (default: the task's timing image). Repeat for models that take several")
+                   help="Image and text-to-image models: the input file (default: the task's timing input). Repeat for models that take several")
     p.add_argument("--note", default="", help="Why, for whoever runs the queue, e.g. 'new adapter for RF-DETR medium'")
     args = p.parse_args(argv)
     model_dir = args.model_dir.resolve()
@@ -120,7 +120,7 @@ def cmd_list(argv: list[str], log: Log) -> int:
     for i in items:
         err = f"  last failure: {i['last_error']['code']}: {i['last_error']['message']}" if i.get("last_error") else ""
         note = f"  ({i['note']})" if i.get("note") else ""
-        log(f"#{i['n']} {i['model_dir']} / {i['size']}  input {', '.join(i['inputs']) or 'timing image'}  ~{minutes(i['estimate_s'])}{note}{err}")
+        log(f"#{i['n']} {i['model_dir']} / {i['size']}  input {', '.join(i['inputs']) or 'timing input'}  ~{minutes(i['estimate_s'])}{note}{err}")
     total = PAUSE_OVERHEAD_S + sum(i["estimate_s"] for i in items)
     return emit("OK", f"{len(items)} run(s) waiting, about {minutes(total)} with the pause",
                 {"queued": len(items), "estimate_s": total, "items": items}, log=log)
