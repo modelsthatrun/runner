@@ -187,12 +187,12 @@ def problems(rec: dict, times_path: Path, task: str | None = None) -> list[str]:
         out.append(f"it was measured under protocol {rec['measurement'].get('protocol')}, and the current one is {protocol.PROTOCOL_VERSION}")
     if not times_path.is_file():
         out.append(f"{times_path.name} is missing")
-    if rec.get("kind", "image") == "image":
+    if rec.get("kind", "image") in ("image", "generation"):
         from . import timing
 
         want = timing.sha_for(task)
         if want is None or p.get("input_sha256") != [want]:
-            out.append("it was measured on another input than its task's timing image (timing/timing.toml). Measure it again without --input")
+            out.append("it was measured on another input than its task's timing input (timing/timing.toml). Measure it again without --input")
     return out
 
 

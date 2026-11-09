@@ -92,11 +92,13 @@ def test_every_adapter_declares_its_task_and_readable_sizes():
         assert ad.sizes_of_file(f), f"{d.name}'s SIZES can't be read without importing it"
 
 
-def test_image_tasks_have_a_matching_timing_image():
+def test_image_and_generation_tasks_have_a_matching_timing_input():
     for d in main.adapters():
-        if ad.kind_of_file(d / "adapter.py") == "image":
-            assert timing.image_for(ad.task_of_file(d / "adapter.py")), d.name
-    assert timing.image_for("chat") is None
+        if ad.kind_of_file(d / "adapter.py") in ("image", "generation"):
+            assert timing.input_for(ad.task_of_file(d / "adapter.py")), d.name
+    assert timing.input_for("chat") is None
+    assert timing.input_for("text-to-image").suffix == ".txt"
+    assert timing.check_all() >= 2
 
 
 def worker_run(times, vram=900):
@@ -112,7 +114,7 @@ def a_record(times_by_run):
                        machine={"cpu": "CPU", "gpu_memory_mib": 24576, "compute_capability": "8.6", "os": "Linux", "power_limit_w": 350.0, "power_default_w": 350.0},
                        provenance={"tool": {"name": "mtr", "version": machine.TOOL_VERSION, "commit": "b" * 40, "dirty": False},
                                    "adapter_sha256": "c" * 64, "lock_sha256": "d" * 64, "input_sha256": [TIMING_SHA]})
-    return rec, record.times(runs, llm=False)
+    return rec, record.times(runs, "image")
 
 
 def test_the_timings_file_validates_and_pairs_with_the_record():
@@ -208,7 +210,7 @@ def golden_submissions() -> dict[str, dict]:
     """One image and one language-model submission built by the real record code from synthetic worker data.
     packages/schema's community.test.ts checks the same files with checkSubmission, so Python and TypeScript agree."""
     image_runs = [worker_run([9.5 + k * 0.071 + ((i * 37) % 13) * 0.0123 for i in range(100)]) for k in range(3)]
-    image_times = record.times(image_runs, llm=False)
+    image_times = record.times(image_runs, "image")
     image = record.build(model="rf-detr", size="nano", weights=[{"file": "rf-detr-nano.pth", "bytes": 1, "sha256": "a" * 64}], runs=image_runs,
                          gpu_name="NVIDIA GeForce RTX 3090", driver="580.95.05", image_digest=None, warmup=10, measured="2026-10-29T10:00:00+09:00",
                          machine={"cpu": "CPU", "gpu_memory_mib": 24576, "compute_capability": "8.6", "os": "Linux", "power_limit_w": 350.0, "power_default_w": 350.0},
@@ -229,7 +231,7 @@ def golden_submissions() -> dict[str, dict]:
                            provenance={"tool": {"name": "mtr", "version": "0.2.0", "commit": "b" * 40, "dirty": False},
                                        "adapter_sha256": "c" * 64, "lock_sha256": "d" * 64, "input_sha256": None})
     return {"submission-image.json": submit.payload(image, image_times, "golden"),
-            "submission-llm.json": submit.payload(llm, record.times(llm_runs, llm=True), "golden")}
+            "submission-llm.json": submit.payload(llm, record.times(llm_runs, "llm"), "golden")}
 
 
 def test_golden_submissions_match_their_fixtures():

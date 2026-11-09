@@ -145,10 +145,10 @@ def main(argv: list[str]) -> int:
             warnings.append(f"nvcc {have} is too old for compute capability {cc}: install CUDA {need} or newer for language models")
 
     try:
-        timing.image_for("object-detection")
-        line(True, "timing images", "match timing/timing.toml")
+        n = timing.check_all()
+        line(True, "timing inputs", f"all {n} match timing/timing.toml")
     except MeasureError as e:
-        line(False, "timing images", str(e))
+        line(False, "timing inputs", str(e))
         warnings.append(str(e))
 
     for where in (paths.root(), Path("~/.cache").expanduser()):

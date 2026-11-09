@@ -140,6 +140,9 @@ def main(argv: list[str], log: Log) -> int:
         from . import llmeval
 
         return llmeval.main(argv, log)
+    if argv and not argv[0].startswith("-") and (Path(argv[0]) / "adapter.py").is_file() \
+            and ad.kind_of_file(Path(argv[0]) / "adapter.py") == "generation":
+        raise MeasureError("USAGE", "Text-to-image models have no benchmark in the tool yet. GenEval is planned (docs/protocol.md, \"Image generation\")")
     args = parse_args(argv)
     machine.pin_gpu(args.gpu)
     bench = BENCHMARKS[args.benchmark]

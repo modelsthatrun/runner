@@ -9,7 +9,8 @@
       "type": "string",
       "enum": [
         "image",
-        "llm"
+        "llm",
+        "generation"
       ]
     },
     "model": {

@@ -26,6 +26,15 @@ CHECK_TIMED = 5
 # what `check` saw the model use.
 EVAL_VRAM_MARGIN_MIB = 1024
 
+# Text-to-image models (kind "generation"): one call makes one image from the task's timing prompt, at the
+# official resolution, steps and guidance, with a fixed seed. A call takes seconds, so each run makes fewer calls
+# than an image model's, as a language model's do; three runs and MAX_SPREAD on the median apply as for image models.
+GEN_WARMUP = 2
+GEN_TIMED = 10
+GEN_CHECK_WARMUP = 1
+GEN_CHECK_TIMED = 2
+GEN_SEED = 0
+
 # Language models (kind "llm"): the pinned llama.cpp build (engine.py), all layers on the GPU,
 # one request at a time. VRAM is reported at LLM_CONTEXT tokens of context; speed for a prompt of
 # LLM_PROMPT_TOKENS tokens (llm_prompt.txt) and LLM_GEN_TOKENS generated tokens. Each run starts a

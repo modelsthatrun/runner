@@ -13,9 +13,10 @@
     mtr submissions                              what you sent, and what the review said
 
     mtr queue add|list|run|drop                  batch timed runs into one pause
-    mtr new <id> [--kind image|llm]              start an adapter for a new model
+    mtr new <id> [--kind image|llm|generation]   start an adapter for a new model
     mtr clean <model> [--yes]                    free the disk a model used
-    mtr outputs <model> --size <size> --images <dir>     draw outputs on test images (maintainers)
+    mtr outputs <model> --size <size> --images <dir>     draw outputs on test images, or make a text-to-image
+                                                         model's prompt-set images (no --images) (maintainers)
 
 <model> is an id such as rf-detr (`mtr models` lists them) or a directory with adapter.py. Every command
 ends with one line, `mtr-result: {json}`, with a status, a code, a message and a hint (errors.py).
@@ -181,14 +182,14 @@ def cmd_models(argv: list[str]) -> int:
         cuda = model_cuda(d)
         rows.append({"id": d.name, "kind": kind, "task": task, "sizes": sizes, "measured": measured, "cuda": cuda,
                      "fits_driver": machine.cuda_fits(cuda, have),
-                     "timing_sha256": timing.sha_for(task) if kind == "image" else None})
+                     "timing_sha256": timing.sha_for(task) if kind in ("image", "generation") else None})
     width = max(len(r["id"]) for r in rows) + 2
-    print(f"{'model':<{width}}{'kind':<7}{'task':<23}{'cuda':<8}sizes")
+    print(f"{'model':<{width}}{'kind':<11}{'task':<23}{'cuda':<8}sizes")
     for r in rows:
         sizes = ", ".join(r["sizes"] or ["see adapter.py"])
         mine = f"   measured here: {', '.join(r['measured'])}" if r["measured"] else ""
         cuda = (r["cuda"] or "local") + ("*" if not r["fits_driver"] else "")
-        print(f"{r['id']:<{width}}{r['kind']:<7}{(r['task'] or '?'):<23}{cuda:<8}{sizes}{mine}")
+        print(f"{r['id']:<{width}}{r['kind']:<11}{(r['task'] or '?'):<23}{cuda:<8}{sizes}{mine}")
     if any(not r["fits_driver"] for r in rows):
         print(f"\n* needs a newer driver: this one supports CUDA up to {have}")
     print("\ncuda: what the model's environment is built for; `local` is llama.cpp, built for your GPU with your nvcc.")

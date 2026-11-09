@@ -108,6 +108,7 @@ Results land in `models/<id>/runs/<size>.json`, with `<size>.times.json` (every 
 | **Depth estimation** | `moge-2` (3) · `depth-anything-v2` (3) · `depth-anything-3-mono` (1) · `depth-anything-3-metric` (1) |
 | **Pose estimation** | `yolo26-pose` (5) · `yolo11-pose` (5) · `yolov8-pose` (5) · `gtr-pose` (4) · `rf-detr-keypoint` (1) |
 | **Chat** (GGUF via llama.cpp) | `qwen3` (2) · `qwen3-5` (1) · `qwen3-8` (1) · `gemma-4` (2) |
+| **Text-to-image** | `flux-2-klein` (1) · `z-image` (1) · `sdxl` (1) |
 
 `./mtr models` lists the sizes and each model's CUDA version, and marks the ones your driver can't run. To add a model, see [Adding a model](#adding-a-model).
 
@@ -153,7 +154,7 @@ Results land in `models/<id>/runs/<size>.json`, with `<size>.times.json` (every 
 | `mtr check <model> --size <size>` | Downloads, loads and tries a checkpoint. Writes no record |
 | `mtr run <model> --size <size>` | One timed measurement → `models/<id>/runs/<size>.json` |
 | `mtr bench <model> [--size …]` | `check`, then `run`, for each size (or the ones named) |
-| `mtr eval <model> --size <size> --benchmark <name>` | Accuracy on a standard benchmark: COCO val2017 (downloads about 1 GB once), or IFEval and GSM8K for language models. Optional, and not submitted yet |
+| `mtr eval <model> --size <size> --benchmark <name>` | Accuracy on a standard benchmark: COCO val2017 (downloads about 1 GB once), or IFEval and GSM8K for language models. None yet for text-to-image. Optional, and not submitted yet |
 | `mtr profile <model> --size <size>` | Splits a checkpoint's GPU time by kernel → `models/<id>/profiles/<size>.json`, for estimates on other GPUs. Untimed; pauses nothing. Not submitted |
 | `mtr results` | Your records, and which can be sent or were sent |
 | `mtr login` · `logout` · `whoami` | Sign in to the inbox with GitHub |

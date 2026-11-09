@@ -46,6 +46,12 @@ WARMUP = 10
 PLAIN = 50
 PROFILER_WARMUP = 3
 PROFILED = 20
+# A text-to-image call makes one image: seconds of work and hundreds of thousands of kernels, so fewer calls
+# give as steady a median and keep the trace small enough to hold in memory.
+GEN_WARMUP = 2
+GEN_PLAIN = 5
+GEN_PROFILER_WARMUP = 1
+GEN_PROFILED = 3
 # A launch that starts within this many microseconds of the previous GPU work ending was waiting in the queue.
 BOUND_GAP_US = 2.0
 CALL = "mtr.call"
@@ -133,7 +139,15 @@ def run(spec: dict) -> dict:
     size = spec["size"]
     ad.check_size(a, size)
     precision = ad.choose_precision(list(a.PRECISIONS))
-    x = ad.prepare_input(a, [Path(p) for p in spec["inputs"]])
+    gen = ad.kind(a) == "generation"
+    if gen:
+        from . import generation, protocol
+
+        x = generation.make(a, size, generation.read_prompt([Path(p) for p in spec["inputs"]]), protocol.GEN_SEED)
+        warmup, n_plain, p_warmup, n_profiled = GEN_WARMUP, GEN_PLAIN, GEN_PROFILER_WARMUP, GEN_PROFILED
+    else:
+        x = ad.prepare_input(a, [Path(p) for p in spec["inputs"]])
+        warmup, n_plain, p_warmup, n_profiled = WARMUP, PLAIN, PROFILER_WARMUP, PROFILED
 
     import torch
     from torch.profiler import ProfilerActivity, profile, record_function
@@ -146,11 +160,11 @@ def run(spec: dict) -> dict:
 
     model = a.load(size, precision)
     sync()
-    for _ in range(WARMUP):
+    for _ in range(warmup):
         a.predict(model, x)
         sync()
     plain = []
-    for _ in range(PLAIN):
+    for _ in range(n_plain):
         sync()
         t0 = time.perf_counter()
         a.predict(model, x)
@@ -158,7 +172,7 @@ def run(spec: dict) -> dict:
         plain.append((time.perf_counter() - t0) * 1000)
 
     with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
-        for _ in range(PROFILER_WARMUP + PROFILED):
+        for _ in range(p_warmup + n_profiled):
             sync()
             with record_function(CALL):
                 a.predict(model, x)
@@ -167,12 +181,13 @@ def run(spec: dict) -> dict:
         trace = Path(tmp) / "trace.json"
         prof.export_chrome_trace(str(trace))
         events = json.loads(trace.read_text()).get("traceEvents", [])
-    agg = aggregate(events, PROFILER_WARMUP)
+    agg = aggregate(events, p_warmup)
 
     cudnn = torch.backends.cudnn.version() if torch.backends.cudnn.is_available() else None
     return {
         "precision": precision,
         "input": ad.input_size(a, size, x),
+        "warmup": warmup,
         "plain_ms": plain,
         **agg,
         "weights": [str(Path(p).resolve()) for p in a.weight_files(size)],
@@ -228,7 +243,7 @@ def build(*, model: str, size: str, weights: list[dict], worker: dict, gpu_name:
             "version": PROFILE_VERSION,
             "precision": worker["precision"],
             "input": worker["input"],
-            "calls": {"warmup": WARMUP, "plain": len(plain), "profiled": worker["calls"]},
+            "calls": {"warmup": worker.get("warmup", WARMUP), "plain": len(plain), "profiled": worker["calls"]},
             "wall_ms": {"median": round(statistics.median(plain), 3), "p90": round(record.percentile(plain, 90), 3)},
             "profiled_wall_ms": worker["profiled_wall_ms"],
             "gpu_busy_ms": worker["gpu_busy_ms"],
@@ -284,7 +299,9 @@ def cmd_profile(argv: list[str], log: Any) -> int:
                     log(f"WARNING: {warnings[-1]}")
             if util > checks.IDLE_UTIL_LIMIT:
                 raise MeasureError("GPU_BUSY", f"The idle GPU is {util:.0f}% busy. Close videos, games or other GPU work.")
-            log(f"running the worker: load, {WARMUP} warm-up and {PLAIN} plain calls, then {PROFILER_WARMUP} + {PROFILED} calls under the profiler")
+            counts = (GEN_WARMUP, GEN_PLAIN, GEN_PROFILER_WARMUP, GEN_PROFILED) if ad.kind_of_file(model_dir / "adapter.py") == "generation" \
+                else (WARMUP, PLAIN, PROFILER_WARMUP, PROFILED)
+            log("running the worker: load, {} warm-up and {} plain calls, then {} + {} calls under the profiler".format(*counts))
             worker, _ = spawn_worker(spec, gpu, args.poll_ms, args.gpu, "mtr_measure.profile")
         finally:
             gpu.close()

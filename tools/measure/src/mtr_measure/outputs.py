@@ -11,7 +11,8 @@ The images are the task's shared test set: the catalog's maintainers fetch it an
 --images. Each file's name without its suffix is the image id. Outputs of images under a `_dev`
 directory never go into the model's outputs: they go to <that _dev directory>/outputs/<id>/<size>/.
 
-Language models answer their task's prompt set instead (llmoutputs.py), and need no --images.
+Language models answer their task's prompt set instead (llmoutputs.py), and text-to-image models make an
+image for each prompt of theirs (genoutputs.py). Neither needs --images.
 """
 
 from __future__ import annotations
@@ -126,6 +127,12 @@ def main(argv: list[str] | None = None) -> int:
             from . import llmoutputs
 
             return llmoutputs.run(model_dir, args.model_id or model_dir.name, args.size, args.task or read_task_or(model_dir, "chat"), log, args.gpu)
+        if (model_dir / "adapter.py").is_file() and ad.kind_of_file(model_dir / "adapter.py") == "generation":
+            from . import genoutputs
+
+            if args.images:
+                raise OutputsError("A text-to-image model makes images from its task's prompt set. Drop --images")
+            return genoutputs.run(model_dir, args.model_id or model_dir.name, args.size, args.task or read_task(model_dir), log, args.out)
         return run(args, log)
     except (OutputsError, ad.AdapterError, predictions.PredictionError, NotImplementedError) as e:
         log(f"FAILED: {e}")

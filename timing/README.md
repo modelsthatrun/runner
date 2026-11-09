@@ -1,4 +1,4 @@
-# Timing images
+# Timing inputs
 
 Every image model of a task is timed on the same photo, so their speeds compare. `timing.toml` names each
 task's photo and its sha256. `mtr run` uses it when you don't pass `--input`, and refuses a file whose
@@ -10,3 +10,9 @@ hash doesn't match.
 
 The photo is downscaled from the original to 1600 px on its long side, with its metadata removed. It
 shows one person, a dog and parked cars in daylight: an ordinary scene, not a hard case.
+
+## Text-to-image
+
+Every text-to-image model is timed on the same prompt, `bicycle-street.txt`, so their speeds compare. One timed
+call makes one image from it at the model's official resolution, steps and guidance, with the protocol's fixed
+seed (`docs/protocol.md`, "Image generation"). The prompt was written for the protocol and is in no prompt set.

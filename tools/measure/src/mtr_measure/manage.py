@@ -1,6 +1,6 @@
 """Housekeeping for model directories: start one from the template, and free its disk space.
 
-    mtr new <id> [--kind image|llm]   models/<id>/ from models/_template/ or _template-llm/
+    mtr new <id> [--kind image|llm|generation]   models/<id>/ from models/_template/, _template-llm/ or _template-gen/
     mtr clean <model> [--yes]         remove its uv environment and weights, then `uv cache prune`
 
 Both run in the tool's own environment, so `clean` never has to build the model's environment
@@ -21,13 +21,13 @@ from .cli import Log, Parser
 from .errors import MeasureError, emit
 
 SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-TEMPLATES = {"image": "_template", "llm": "_template-llm"}
+TEMPLATES = {"image": "_template", "llm": "_template-llm", "generation": "_template-gen"}
 
 
 def cmd_new(argv: list[str], log: Log) -> int:
     p = Parser(prog="mtr new", description="Start models/<id>/ from the template for its kind.")
     p.add_argument("id", help="The model family id, a lowercase-hyphen slug such as rf-detr")
-    p.add_argument("--kind", choices=sorted(TEMPLATES), default="image", help="image (default) or llm (a GGUF through llama.cpp)")
+    p.add_argument("--kind", choices=sorted(TEMPLATES), default="image", help="image (default), llm (a GGUF through llama.cpp) or generation (a text-to-image pipeline)")
     args = p.parse_args(argv)
     if not SLUG.match(args.id):
         raise MeasureError("USAGE", f"{args.id!r} is not a slug: use lowercase letters and digits joined by single hyphens")
@@ -43,7 +43,7 @@ def cmd_new(argv: list[str], log: Log) -> int:
             f.write_text(f.read_text().replace(old, new))
     for f in sorted(dest.rglob("*")):
         log(f"created {f.relative_to(paths.root())}")
-    todo = "name the GGUF files in adapter.py" if args.kind == "llm" else "follow the official README to fill in adapter.py and pyproject.toml"
+    todo = "name the GGUF files in adapter.py" if args.kind == "llm" else "follow the official model card to fill in adapter.py and pyproject.toml"
     log(f"next: {todo}, then `mtr check {args.id} --size <size>` (docs/adapters.md)")
     return emit("OK", f"Created models/{args.id}/ ({args.kind})", {"dir": str(dest)}, log=log)
 

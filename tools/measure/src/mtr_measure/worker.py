@@ -47,7 +47,14 @@ def run(spec: dict) -> dict:
     size = spec["size"]
     ad.check_size(a, size)
     precision = ad.choose_precision(list(a.PRECISIONS))
-    x = ad.prepare_input(a, [Path(p) for p in spec["inputs"]])
+    gen = ad.kind(a) == "generation"
+    if gen:
+        from . import generation, protocol
+
+        # The tool makes the call's input from the timing prompt and the adapter's GENERATION.
+        x = generation.make(a, size, generation.read_prompt([Path(p) for p in spec["inputs"]]), protocol.GEN_SEED)
+    else:
+        x = ad.prepare_input(a, [Path(p) for p in spec["inputs"]])
 
     import torch
 
@@ -96,6 +103,8 @@ def run(spec: dict) -> dict:
         "output": output,
         "device": torch.cuda.get_device_name(),
     }
+    if gen:
+        result["generation"] = generation.recorded(x, generation.scheduler(a, model))
     if spec.get("mode") == "check":
         result["checks"] = check_more(a, model, x, size, spec.get("task"))
     return result
@@ -110,6 +119,12 @@ def check_more(a: Any, model: Any, x: Any, size: str, task: str | None) -> list[
     if not a.weight_files(size):
         raise MeasureError("ADAPTER_INTERFACE", "weight_files() returned no files")
     notes.append(f"weight files: {len(a.weight_files(size))} present")
+    if ad.kind(a) == "generation":
+        from . import generation
+
+        img = generation.check_image(a.predict(model, x), x)
+        notes.append(f"predict(): a {img.size[0]}x{img.size[1]} image, {x.steps} steps at guidance {x.guidance:g}, seed {x.seed} on {x.generator}")
+        return notes
     if task:
         pred = ad.to_prediction(a, model, x, a.predict(model, x), task)
         # Alpha and Depth are one map per image, so they have no length.

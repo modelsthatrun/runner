@@ -1,8 +1,11 @@
-"""The shared prompt sets for language-model tasks, kept with the tool as part of the protocol.
+"""The shared prompt sets, kept with the tool as part of the protocol: for language-model tasks such as chat,
+and for text-to-image.
 
 Each set is prompts/<task>.toml: a version, the generation settings every checkpoint answers with, and
-the prompts, each with an id, a category, the prompt and the check a correct answer must pass. The output
-step for language models reads a set through load(), and records its version and sha256 next to the answers.
+the prompts, each with an id, a category, the prompt and the check a correct answer (or image) must pass.
+The output step reads a set through load(), and records its version and sha256 next to the answers or images.
+A language set's [generation] holds max_tokens, temperature, thinking and system; a text-to-image set's holds
+the seed every image is made with.
 """
 
 from __future__ import annotations
@@ -36,6 +39,7 @@ class PromptSet:
     system: str
     prompts: tuple[Prompt, ...]
     sha256: str
+    seed: int = 0
 
 
 def load(task: str) -> PromptSet:
@@ -54,6 +58,8 @@ def load(task: str) -> PromptSet:
         problems.append("version must be a positive integer")
     if not prompts:
         problems.append("no prompts")
+    if not isinstance(gen.get("seed", 0), int) or gen.get("seed", 0) < 0:
+        problems.append("[generation] seed must be a non-negative integer")
     seen: set[str] = set()
     for p in prompts:
         if not SLUG.match(p.id):
@@ -73,4 +79,5 @@ def load(task: str) -> PromptSet:
         system=str(gen.get("system", "")),
         prompts=prompts,
         sha256=sha256_file(path),
+        seed=int(gen.get("seed", 0)),
     )

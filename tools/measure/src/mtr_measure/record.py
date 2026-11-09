@@ -159,15 +159,20 @@ def build(
     measured: str,
     machine: dict | None = None,
     provenance: dict | None = None,
+    kind: str = "image",
 ) -> dict:
     """`runs` holds one {"worker", "baseline_bytes", "peak_bytes"} per independent run. `machine` adds the
-    machine facts to env (machine.facts), and `provenance` says where the record came from."""
+    machine facts to env (machine.facts), and `provenance` says where the record came from. A text-to-image
+    record (kind "generation", schema/gen-run-record.schema.json) also says how each image was made."""
     if not runs:
         raise ValueError("no runs")
     summaries = [summarize_run(r["worker"], r["baseline_bytes"], r["peak_bytes"]) for r in runs]
     first = runs[0]["worker"]
+    gen = {"generation": first["generation"]} if kind == "generation" else {}
+    if gen and any(r["worker"]["generation"] != first["generation"] for r in runs):
+        raise ValueError("the runs made their images with different settings")
     return {
-        "kind": "image",
+        "kind": kind,
         "model": model,
         "size": size,
         "weights": weights,
@@ -197,6 +202,7 @@ def build(
             "measured": measured,
             "protocol": PROTOCOL_VERSION,
             "runs": summaries,
+            **gen,
         },
         **({"provenance": provenance} if provenance else {}),
     }
@@ -205,12 +211,12 @@ def build(
 LLM_TIME_KEYS = ("ttft_ms", "e2e_ms", "prefill_tps", "decode_tps", "prompt_n")
 
 
-def times(runs: list[dict], llm: bool) -> dict:
+def times(runs: list[dict], kind: str) -> dict:
     """The raw timings behind a record (schema/run-times.schema.json): every timed call of each run, or for a
     language model every timed request's numbers. They let anyone recompute the record's medians."""
-    if llm:
+    if kind == "llm":
         return {"kind": "llm", "runs": [[{k: q[k] for k in LLM_TIME_KEYS} for q in r["worker"]["requests"]] for r in runs]}
-    return {"kind": "image", "runs": [list(r["worker"]["times_ms"]) for r in runs]}
+    return {"kind": kind, "runs": [list(r["worker"]["times_ms"]) for r in runs]}
 
 
 def project_dir(model_dir: Path) -> Path:

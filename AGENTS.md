@@ -86,8 +86,13 @@ Follow [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/adapters.md](docs/adapters.m
 2. **Name the files.** Put each GGUF file in `WEIGHTS`, with the repository, its 40-hex commit, the file names and the quantization. There's no `pyproject.toml` or lock: llama.cpp runs it.
 3. **Check and score.** `./mtr check`, then optionally `./mtr eval` with `ifeval` and `gsm8k-cot`.
 
-**Then, for either kind:**
-- **Propose the pull request to the user.** Include the adapter, plus `pyproject.toml`, `uv.lock` and `.python-version` for an image model. Never include records, weights or outputs; git ignores them. Push and open it only with the user's go-ahead.
+**A text-to-image model:**
+1. **Start the directory.** `./mtr new <id> --kind generation`.
+2. **Write the adapter from the official model card:** its pipeline, dtype, resolution, steps, guidance and generator device in `GENERATION`. Leave out any CPU offload: everything stays on the GPU, and `OOM` is a result.
+3. **Check it.** `./mtr check <id> --size <size>`. There's no benchmark yet.
+
+**Then, for any kind:**
+- **Propose the pull request to the user.** Include the adapter, plus `pyproject.toml`, `uv.lock` and `.python-version` for an image or text-to-image model. Never include records, weights or outputs; git ignores them. Push and open it only with the user's go-ahead.
 - **The description** gives the license sources (rule 7) and the `mtr-result` lines of the checks.
 - **Patches.** If the official code needed a patch, put it in `models/<id>/fixes/` and say why.
 - **Submitting the new model's records** works only after the pull request is merged. Then `git pull`, measure again and submit.
@@ -101,5 +106,5 @@ Follow [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/adapters.md](docs/adapters.m
 | `tools/measure/src/mtr_measure/schema/` | JSON Schemas of records and submissions. Generated; don't edit |
 | `tools/measure/tests/` | `uv run --frozen --project tools/measure pytest tools/measure/tests -q`. No GPU needed |
 | `models/<id>/` | One model family: `adapter.py`, `pyproject.toml`, `uv.lock`, optional `fixes/` |
-| `timing/` | The fixed timing image per task, with its sha256 |
+| `timing/` | The fixed timing input per task, with its sha256: a photo, or for text-to-image a prompt |
 | `docs/` | Protocol, adapter interface and submitting |

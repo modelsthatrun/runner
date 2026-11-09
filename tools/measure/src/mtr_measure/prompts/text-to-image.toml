@@ -1,0 +1,102 @@
+# The shared prompt set for the text-to-image task: the counterpart of the image test set for models that
+# make images instead of reading them.
+#
+# Every text-to-image checkpoint makes one image per prompt, the same way: its official resolution, steps and
+# guidance, and the seed below. The images are shown side by side with other models'. That is how a page shows
+# the model ran. We wrote every prompt for this site; none is copied from a benchmark or the web. No prompt
+# asks for a real person, a child, a brand, a character or an artist's style.
+#
+# `check` says what a correct image must show. A failure is flagged by hand when an image misses its check,
+# with a one-line note, as for image outputs.
+#
+# This file is part of the protocol. Changing a prompt, adding one or changing the seed means every
+# text-to-image checkpoint makes its images again: raise `version` with it.
+
+version = 1
+
+[generation]
+seed = 0    # one torch.Generator seed for every image, on the device the model card seeds it on
+
+[[prompts]]
+id = "count-five-apples"
+category = "Counting"
+prompt = """Exactly five green apples in a single row on a wooden table, plain white background, product photo."""
+check = "Exactly five apples, all green, in one row on a wooden surface."
+
+[[prompts]]
+id = "color-binding-shapes"
+category = "Color binding"
+prompt = """A blue cube resting on top of a red sphere, with a yellow cone standing beside them, on a grey studio floor."""
+check = "Each color on its own shape: a blue cube on top of a red sphere, and a yellow cone beside them. No swapped or mixed colors."
+
+[[prompts]]
+id = "left-of-right-of"
+category = "Spatial relations"
+prompt = """A cat sitting on the left end of a sofa and a dog sitting on the right end, both facing the camera, living room."""
+check = "A cat on the left and a dog on the right, both on one sofa, both facing the viewer."
+
+[[prompts]]
+id = "sign-text"
+category = "Text rendering"
+prompt = """A wooden sign above a bakery door that reads "FRESH BREAD DAILY" in white painted capital letters."""
+check = "The sign reads FRESH BREAD DAILY, spelled exactly and legible, with no extra letters."
+
+[[prompts]]
+id = "chalkboard-menu"
+category = "Text rendering, several lines"
+prompt = """A café chalkboard menu with three lines written in chalk: "Coffee 3", "Tea 2" and "Cake 4"."""
+check = "Three legible lines, each spelled exactly with its number: Coffee 3, Tea 2, Cake 4. No other words."
+
+[[prompts]]
+id = "river-aerial"
+category = "Photorealism, landscape"
+prompt = """Aerial photograph of a winding river through an autumn forest at sunrise, thin mist lying over the water."""
+check = "Reads as a photo from above: a winding river, autumn-colored trees, mist on the water, with no duplicated or melted trees."
+
+[[prompts]]
+id = "ramen-bowl"
+category = "Photorealism, food"
+prompt = """Close-up photo of a bowl of ramen with a soft-boiled egg cut in half, sliced green onions and two slices of pork, steam rising, on a dark wooden table."""
+check = "A ramen bowl with a halved soft-boiled egg, green onion and two slices of pork, on a dark wooden table."
+
+[[prompts]]
+id = "glass-window-rain"
+category = "Transparency and reflection"
+prompt = """A glass of water on a windowsill, a rainy city street outside the window, the street seen bent and upside down through the water in the glass."""
+check = "A clear glass of water on a sill, rain outside, and the street visibly refracted through the glass."
+
+[[prompts]]
+id = "hands-kneading"
+category = "Hands"
+prompt = """Close-up of an adult's two hands kneading bread dough on a floured wooden counter, no face in the frame."""
+check = "Two hands with five fingers each and plausible joints, kneading dough on a floured counter. No face."
+
+[[prompts]]
+id = "watch-ten-ten"
+category = "Fine detail"
+prompt = """Macro photograph of a plain mechanical wristwatch with no brand name, its hands showing ten past ten, the second hand pointing at six."""
+check = "The hour and minute hands show 10:10 and the second hand points at 6. The dial has no brand or logo."
+
+[[prompts]]
+id = "reading-nook"
+category = "Long, dense prompt"
+prompt = """A cozy reading nook: a green armchair with a striped blanket over its arm, a sleeping orange cat curled up on the seat, a floor lamp with a yellow shade to the right of the chair, a small round table to the left holding a white teapot and two cups, a stack of three books on the floor, and rain running down the window behind."""
+check = "All of it: green armchair, striped blanket, orange cat asleep on the seat, floor lamp with a yellow shade on the right, round table on the left with a white teapot and two cups, three books stacked on the floor, rain on the window."
+
+[[prompts]]
+id = "lighthouse-watercolor"
+category = "Style"
+prompt = """A watercolor painting of a lighthouse on a rocky coast under a stormy sky, loose brush strokes, visible paper texture."""
+check = "Looks like a watercolor, with washes and paper texture, not a photo: a lighthouse on rocks under a stormy sky."
+
+[[prompts]]
+id = "empty-bench"
+category = "Negation"
+prompt = """An empty park bench in fresh snow, with no people and no birds anywhere."""
+check = "A park bench in snow. No people and no birds anywhere in the image."
+
+[[prompts]]
+id = "giraffe-scarf"
+category = "Unusual combination"
+prompt = """A giraffe wearing a long knitted red scarf, standing in a snowy city square at night, street lamps glowing."""
+check = "A giraffe with a red knitted scarf around its neck, in a snowy city square at night, with lit street lamps."

@@ -85,6 +85,32 @@
         "runs"
       ],
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "generation"
+        },
+        "runs": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "runs"
+      ],
+      "additionalProperties": false
     }
   ]
 }

@@ -27,6 +27,20 @@ Optional:
     eval_predict(model, x)        use instead of predict() for accuracy, when the official
                                   evaluation calls the model differently from its README
 
+Text-to-image models (KIND = "generation") run a pipeline on a prompt (models/_template-gen/adapter.py).
+Required:
+    KIND = "generation"
+    TASK: str                     "text-to-image"
+    SIZES, PRECISIONS, PACKAGE    as for image models
+    GENERATION: dict[str, dict]   per size, from the official model card: steps, guidance, resolution ("WxH")
+                                  and generator, the device it seeds its torch.Generator on ("cpu" or "cuda")
+    load(size, precision)         the pipeline, every component on the GPU (no CPU offload)
+    predict(model, x)             one image: x is a mtr_measure.generation.Generate with the prompt, seed,
+                                  steps, guidance, width, height and generator. Return the PIL image
+    weight_files(size)            every file load() read, the denoiser's first
+Optional:
+    SCHEDULER: str                the sampler's name, when the pipeline has no .scheduler
+
 Language models (KIND = "llm") have no code: the pinned llama.cpp build runs them
 (models/_template-llm/adapter.py). Required:
     KIND = "llm"
@@ -59,7 +73,7 @@ KNOWN_PRECISIONS = ("fp16", "fp32", "bf16")
 DEFAULT_SCOPE = "predict(): pre-processing, forward pass and post-processing; input file decoded beforehand"
 
 
-KINDS = ("image", "llm")
+KINDS = ("image", "llm", "generation")
 # llama-server flags the protocol sets for every language model; an adapter may not set them.
 LLM_PROTOCOL_FLAGS = {
     "-c", "--ctx-size", "-np", "--parallel", "-ngl", "--gpu-layers", "--n-gpu-layers", "--host", "--port",
@@ -163,6 +177,11 @@ def check_interface(a: Any) -> None:
     if kind(a) == "llm":
         check_llm_interface(a)
         return
+    if kind(a) == "generation":
+        from . import generation
+
+        generation.check_interface(a)
+        return
     missing = [n for n in ("SIZES", "PRECISIONS", "load", "predict", "weight_files") if not hasattr(a, n)]
     if not hasattr(a, "package_version") and not hasattr(a, "PACKAGE"):
         missing.append("PACKAGE (or package_version())")
@@ -200,6 +219,8 @@ def prepare_input(a: Any, paths: list[Path]) -> Any:
 
 
 def input_size(a: Any, size: str, x: Any) -> str:
+    if kind(a) == "generation":
+        return x.resolution
     value = a.input_size(size, x) if hasattr(a, "input_size") else a.INPUT.get(size)
     if not isinstance(value, str) or not re.fullmatch(r"\d+x\d+", value):
         raise AdapterError(f'The input resolution for "{size}" must be "WxH", got {value!r}')
@@ -213,6 +234,10 @@ def package(a: Any) -> str:
 
 
 def latency_scope(a: Any) -> str:
+    if kind(a) == "generation":
+        from .generation import LATENCY_SCOPE
+
+        return str(getattr(a, "LATENCY_SCOPE", LATENCY_SCOPE))
     return str(getattr(a, "LATENCY_SCOPE", DEFAULT_SCOPE))
 
 

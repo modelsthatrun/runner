@@ -2,6 +2,7 @@
 models/*/meta.toml
 !models/_template/meta.toml
 !models/_template-llm/meta.toml
+!models/_template-gen/meta.toml
 models/*/runs/
 models/*/outputs/
 models/*/evals/

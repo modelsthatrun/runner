@@ -65,6 +65,36 @@ THINKING_OFF_ARGS: list[str] = []  # how the model card turns thinking off, e.g.
 - **Whose GGUF.** Prefer the one the model's own organization publishes. If there is none, a third-party quantization may be used; say so in the pull request.
 - **Protocol flags are refused.** Flags the protocol owns, such as context, GPU layers and batch sizes, are refused in `SERVER_ARGS`.
 
+## Text-to-image models
+
+A text-to-image model runs its pipeline through an adapter like an image model's, with `KIND = "generation"`. Start from `models/_template-gen/` (`mtr new <id> --kind generation`).
+
+```python
+KIND = "generation"
+TASK = "text-to-image"
+SIZES = ["4b"]
+PRECISIONS = ["bf16"]             # what the model card loads it in
+PACKAGE = "diffusers"
+GENERATION = {"4b": {"resolution": "1024x1024", "steps": 4, "guidance": 1.0, "generator": "cuda"}}
+
+def load(size, precision):        # the pipeline, every component on the GPU
+    return Flux2KleinPipeline.from_pretrained(REPO, revision=REVISION, torch_dtype=torch.bfloat16).to("cuda")
+
+@torch.inference_mode()
+def predict(model, x):            # x: mtr_measure.generation.Generate
+    return model(prompt=x.prompt, width=x.width, height=x.height, num_inference_steps=x.steps, guidance_scale=x.guidance,
+                 generator=torch.Generator(x.generator).manual_seed(x.seed)).images[0]
+
+def weight_files(size): ...       # every weight file load() read, the denoiser's first
+```
+
+- **Settings from the model card.** `GENERATION` holds its example's resolution, steps and guidance, and the device it seeds its generator on. Where the card relies on the pipeline's defaults, write those down.
+- **The tool makes the input.** `predict()` gets the prompt and the settings in `x`, and must use them as they are. It returns one PIL image at `x.width` × `x.height`; `mtr check` refuses anything else.
+- **No offload.** Leave out `enable_model_cpu_offload()`, `enable_sequential_cpu_offload()` and the like, even when the card calls them. Everything stays on the GPU.
+- **The scheduler.** The record names the class of the pipeline's `scheduler`. A pipeline without one sets `SCHEDULER` to the sampler's name.
+- **Pin the revision.** Load from the repository's 40-hex commit, and list each weight file at that commit in `weight_files()`.
+- **No `to_prediction()`.** The image is the output.
+
 ## Prediction types
 
 `to_prediction()` returns one of the standard types in `mtr_measure.predictions`.

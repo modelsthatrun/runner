@@ -7,11 +7,11 @@ The `mtr` command (main.py) runs these in the model's own uv environment:
     mtr eval <model> --size <size> --benchmark <name>    accuracy on a standard benchmark. Pauses nothing
     mtr profile <model> --size <size> [--input <file>]   GPU time by kernel, for estimates on other GPUs. Pauses nothing
     mtr queue add | list | run | drop                    batch timed runs into one pause (runqueue.py)
-    mtr new <id> [--kind image|llm]                      a model directory from the template
+    mtr new <id> [--kind image|llm|generation]           a model directory from the template
     mtr clean <model> [--yes]                            remove the model's environment and weights
 
 <model> is an id such as rf-detr, or a directory with adapter.py. Image models are timed on their task's
-timing image (timing/timing.toml) unless --input names another file. Every command ends with one
+timing image, and text-to-image models on its timing prompt (timing/timing.toml), unless --input names another file. Every command ends with one
 `mtr-result: {json}` line that says what happened and what to do next (errors.py).
 
 A timed run checks the machine, then starts the model's worker process RUNS times. Before each run it
@@ -93,11 +93,11 @@ def read_task(model_dir: Path) -> str | None:
 
 def default_inputs(model_dir: Path, timed: bool) -> list[Path]:
     """The task's timing image. `check` falls back to any timing image for a task without one; a timed run doesn't."""
-    f = timing.image_for(read_task(model_dir))
+    f = timing.input_for(read_task(model_dir))
     if f:
         return [f]
-    if timed:
-        raise MeasureError("USAGE", f"The adapter's TASK ({read_task(model_dir) or 'none'}) has no timing image in timing/timing.toml. "
+    if timed or ad.kind_of_file(model_dir / "adapter.py") == "generation":
+        raise MeasureError("USAGE", f"The adapter's TASK ({read_task(model_dir) or 'none'}) has no timing input in timing/timing.toml. "
                                     "Pass --input <file>")
     return [timing.any_image()]
 
@@ -166,7 +166,9 @@ def cmd_check(argv: list[str], log: Log) -> int:
     check_poll(args)
     model_dir = check_paths(args)
     model_id = args.model_id or model_dir.name
-    llm = ad.kind_of_file(model_dir / "adapter.py") == "llm"
+    kind = ad.kind_of_file(model_dir / "adapter.py")
+    llm = kind == "llm"
+    gen = kind == "generation"
     log_path = record.check_path(model_dir, args.size).with_suffix(".log")
     warnings: list[str] = []
 
@@ -185,10 +187,11 @@ def cmd_check(argv: list[str], log: Log) -> int:
             task = args.task or read_task(model_dir)
             for f in inputs:
                 log(f"input: {f}")
+            warmup, timed = (protocol.GEN_CHECK_WARMUP, protocol.GEN_CHECK_TIMED) if gen else (protocol.CHECK_WARMUP, protocol.CHECK_TIMED)
             spec = {"adapter": str(model_dir / "adapter.py"), "size": args.size, "inputs": [str(f) for f in inputs],
-                    "warmup": protocol.CHECK_WARMUP, "timed": protocol.CHECK_TIMED, "mode": "check", "task": task}
+                    "warmup": warmup, "timed": timed, "mode": "check", "task": task}
             module = "mtr_measure.worker"
-            what = f"{protocol.CHECK_WARMUP} warm-up and {protocol.CHECK_TIMED} timed predict() calls"
+            what = f"{warmup} warm-up and {timed} timed predict() calls"
         gpu = Gpu(args.gpu)
         try:
             window = cpu.Window().start()
@@ -226,9 +229,12 @@ def cmd_check(argv: list[str], log: Log) -> int:
         log(f"package: {worker['env']['package']}, precision {worker['precision']}, input {worker['input']}, load {worker['load_s']:.1f} s")
         log(f"output of predict(): {worker['output']}")
         log(f"approximate: {approx_ms} ms per call, {approx_vram} MiB of GPU memory (not measurements: other programs share the GPU)")
-        if not task:
+        if gen:
+            g = worker["generation"]
+            log(f"generation: {g['steps']} steps, guidance {g['guidance']:g}, {g['scheduler']}, seed {g['seed']} on {g['generator']}")
+        elif not task:
             warnings.append("to_prediction() was not checked: the adapter declares no TASK and there was no --task")
-        check = {"model": model_id, "kind": "image", "precision": worker["precision"], "input": worker["input"],
+        check = {"model": model_id, "kind": kind, "precision": worker["precision"], "input": worker["input"],
                  "package": worker["env"]["package"], "load_s": round(worker["load_s"], 2), "approx_ms": approx_ms,
                  "approx_vram_mib": approx_vram, "task": task,
                  # Where the weights are, resolved and as listed (often a cache symlink), for `mtr clean`.
@@ -259,7 +265,9 @@ def cmd_run(argv: list[str], log: Log) -> int:
     out = (args.out or model_dir / "runs" / f"{args.size}.json").resolve()
     dry = args.dry_run or args.force
     warnings: list[str] = []
-    llm = ad.kind_of_file(model_dir / "adapter.py") == "llm"
+    kind = ad.kind_of_file(model_dir / "adapter.py")
+    llm = kind == "llm"
+    gen = kind == "generation"
     failed_log = out.with_name(f"{args.size}.failed.log")
 
     log(f"mtr run {model_id} / {args.size}, protocol {protocol.PROTOCOL_VERSION}")
@@ -278,10 +286,11 @@ def cmd_run(argv: list[str], log: Log) -> int:
             inputs = [f.resolve() for f in args.inputs] if args.inputs else default_inputs(model_dir, timed=True)
             for f in inputs:
                 log(f"input: {f} sha256 {record.sha256_file(f)}")
+            warmup, timed = (protocol.GEN_WARMUP, protocol.GEN_TIMED) if gen else (protocol.WARMUP, protocol.TIMED)
             spec = {"adapter": str(model_dir / "adapter.py"), "size": args.size, "inputs": [str(f) for f in inputs],
-                    "warmup": protocol.WARMUP, "timed": protocol.TIMED}
+                    "warmup": warmup, "timed": timed}
             module, summarize, spread_key = "mtr_measure.worker", record.summarize_run, "median"
-            what = f"{protocol.WARMUP} warm-up and {protocol.TIMED} timed predict() calls"
+            what = f"{warmup} warm-up and {timed} timed predict() calls"
     except MeasureError as e:
         log(f"FAILED: {e}")
         return finish(log, failed_log, e.code, str(e))
@@ -367,21 +376,24 @@ def cmd_run(argv: list[str], log: Log) -> int:
     else:
         rec = record.build(
             model=model_id, size=args.size, weights=weights, runs=runs, gpu_name=gpu_name, driver=driver,
-            image_digest=os.environ.get("MTR_IMAGE_DIGEST") or None, warmup=protocol.WARMUP, measured=measured,
-            machine=facts, provenance=machine.provenance(model_dir, inputs),
+            image_digest=os.environ.get("MTR_IMAGE_DIGEST") or None, warmup=spec["warmup"], measured=measured,
+            machine=facts, provenance=machine.provenance(model_dir, inputs), kind=kind,
         )
         m = rec["measurement"]
         spread = record.spread(m["runs"], spread_key)
         log(f"worker device: {worker['device']}")
         log(f"output of predict(): {worker['output']}")
         log(f"precision {m['precision']}, input {m['input']}")
+        if gen:
+            g = m["generation"]
+            log(f"generation: {g['steps']} steps, guidance {g['guidance']:g}, {g['scheduler']}, seed {g['seed']} on {g['generator']}")
         log(f"latency: median {m['latency_ms']['median']} ms, p90 {m['latency_ms']['p90']} ms "
             f"(medians of {len(runs)} runs; spread {spread:.1%}, the protocol allows {protocol.MAX_SPREAD:.0%})")
         log(f"vram peak: {m['vram_peak_mib']} MiB over a {m['env']['baseline_mib']} MiB baseline (torch max reserved {m['torch_max_reserved_mib']} MiB)")
         numbers = {"latency_median_ms": m["latency_ms"]["median"], "latency_p90_ms": m["latency_ms"]["p90"],
                    "vram_peak_mib": m["vram_peak_mib"], "spread": round(spread, 4)}
         headline = f"median {m['latency_ms']['median']} ms, VRAM peak {m['vram_peak_mib']} MiB"
-        schema = "run-record"
+        schema = "gen-run-record" if gen else "run-record"
     for w in weights:
         log(f"weights: {w['file']} {w['bytes'] / MIB:.1f} MiB sha256 {w['sha256']}")
 
@@ -404,7 +416,7 @@ def cmd_run(argv: list[str], log: Log) -> int:
             return finish(log, out.with_name(f"{args.size}.dry-run.log"), "OK", f"Dry run of {model_id} / {args.size}: no record written", numbers, warnings)
         return finish(log, failed_log, code, message, numbers, warnings)
 
-    times = record.times(runs, llm)
+    times = record.times(runs, kind)
     problems = record.validate(times, "run-times")
     if problems:
         return finish(log, failed_log, "SCHEMA", f"The timings fail their schema: {problems[0]}", numbers, warnings)

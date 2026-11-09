@@ -7,9 +7,10 @@ Numbers compare only when every run follows the same protocol. `mtr` enforces th
 - speed
 - accuracy on a standard benchmark
 
-It handles two kinds of model:
+It handles three kinds of model:
 - **Image models** (`KIND = "image"`, the default). They run through a Python adapter, each in its own uv environment from a committed `uv.lock` (`docs/adapters.md`).
 - **Language models** (`KIND = "llm"`). They run as GGUF files through one pinned llama.cpp build.
+- **Text-to-image models** (`KIND = "generation"`). They run a pipeline, such as a diffusers one, through a Python adapter like an image model's, and make one image per call ("Image generation" below).
 
 ## The machine
 
@@ -114,6 +115,22 @@ Records never carry a host name, a user name or a path.
   - Every checkpoint answers each one greedily, with thinking off, no system prompt and at most 512 tokens.
   - Changing the set raises its `version`, and every chat checkpoint answers again.
 
+## Image generation
+
+Text-to-image models are timed like image models (Latency, VRAM), with these differences:
+
+- **One call is one image.** It covers the text encoding, every denoising step and the VAE decode, up to the PIL image the pipeline returns. The prompt is read before timing starts. Saving the image isn't timed.
+- **What the tool passes.** The tool, not the adapter, makes each call's input: the prompt, the seed, and the steps, guidance, width and height the adapter declares in `GENERATION`. The record's `generation` block repeats them with the device the generator is seeded on and the pipeline's scheduler. `input` is the image's resolution.
+- **The official settings.** Resolution, steps and guidance come from the official model card's example. Where the card leaves them out, the pipeline's own defaults apply, and the adapter writes them down.
+- **Everything on the GPU.** Every component stays on the GPU for the whole call. Calls such as `enable_model_cpu_offload()`, which model cards add to save memory, are left out. A model that doesn't fit without them doesn't run on this GPU (`OOM`).
+- **One fixed prompt.** Every model is timed on `timing/bicycle-street.txt`, with seed 0. The tool checks its sha256 first.
+- **Fewer calls.** A call takes seconds, so each run makes 2 warm-up and 10 timed calls, as a language model's run makes requests. There are still three independent runs, and the spread limit applies to their medians.
+- **The prompt set.** `tools/measure/src/mtr_measure/prompts/text-to-image.toml` holds the task's shared prompts, each with the check a correct image must pass. `mtr outputs` makes one image per prompt with the set's seed and the same settings as a timed call.
+  - Changing the set raises its `version`, and every text-to-image checkpoint makes its images again.
+  - The same seed doesn't give the same pixels on another GPU, driver or library version, or even in another process. Images are compared by eye, never by hash.
+- **Accuracy.** No benchmark yet. GenEval is planned.
+- **Profiles** make fewer calls (Profiles, below).
+
 ## Accuracy
 
 `mtr eval <model> --size <size> --benchmark <benchmark>` scores a checkpoint on a standard public benchmark. It writes `models/<id>/evals/<size>/<benchmark>.json`, an eval record.
@@ -142,6 +159,8 @@ Records never carry a host name, a user name or a path.
   1. Load the checkpoint, then 10 warm-up calls.
   2. 50 plain calls, timed as in a timed run, without the profiler.
   3. 23 calls under `torch.profiler`. The first 3 are dropped.
+
+  A text-to-image call takes seconds and launches hundreds of thousands of kernels, so it makes 2 warm-up, 5 plain and 1 + 3 profiled calls.
 - **Each profiled call is one window.** It is closed by a synchronize, so every kernel and copy it started ran inside it. Per kernel name, the record keeps the median over the windows of:
   - its launches
   - its GPU time
@@ -154,7 +173,7 @@ Records never carry a host name, a user name or a path.
 
 ## Outputs
 
-`mtr outputs` draws a checkpoint's outputs on a task's test images, for the catalog's galleries. The catalog's maintainers run it: the shared test set isn't part of this repository, and submissions don't include outputs.
+`mtr outputs` draws a checkpoint's outputs on a task's test images, for the catalog's galleries. The catalog's maintainers run it: the shared test set isn't part of this repository, and submissions don't include outputs. Language models answer their prompt set instead (`answers.json`), and text-to-image models make one image per prompt of theirs (`<prompt-id>.webp` and `generations.json`).
 
 - **Same treatment for every model.** Every model of a task is drawn the same way, with one fixed score threshold per task. Nobody tunes it per model.
 - **Format.** Outputs are WebP, at the input image's own size.

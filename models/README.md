@@ -22,7 +22,7 @@ What the tool writes stays out of git:
   runs/<size>.log                    # the checks and timings of that run (.failed.log when it failed)
   runs/<size>.submitted.json         # set by `mtr submit`: the inbox's id for the record
   evals/<size>/<benchmark>.json      # accuracy from `mtr eval`; its raw predictions stay next to it
-  outputs/<size>/                    # images from `mtr outputs`, or answers.json for a language model
+  outputs/<size>/                    # images from `mtr outputs`, or answers.json for a language model, or generations.json with the images for a text-to-image model
   .venv/                             # the model's environment, free to delete (`mtr clean`)
   meta.toml                          # copied by `mtr new`: the catalog's facts, which its maintainers fill in. Contributors leave it alone
 ```

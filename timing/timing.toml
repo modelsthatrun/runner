@@ -8,6 +8,7 @@ instance-segmentation = "dog-walk-square"
 image-matting = "dog-walk-square"
 depth-estimation = "dog-walk-square"
 pose-estimation = "dog-walk-square"
+text-to-image = "bicycle-street"
 
 [images.dog-walk-square]
 file = "dog-walk-square.jpg"
@@ -17,3 +18,10 @@ author = "Retired electrician"
 source = "https://commons.wikimedia.org/wiki/File:Moscow,_Gagarina_Square,_walking_the_dog_June_2025_01.jpg"
 license = "CC0-1.0"
 note = "Dedicated to the public domain (CC0 1.0) by its author, checked 2026-10-27. Downscaled to 1600x1067, metadata removed."
+
+# Text-to-image models are timed on a prompt instead: one image from this text, at each model's official
+# resolution, steps and guidance, with the protocol's fixed seed.
+[prompts.bicycle-street]
+file = "bicycle-street.txt"
+sha256 = "1a0c2fa564969741e0c3d3a5adf9016c0e2e1fc78e78f2e9d96d6659c9185edb"
+note = "Written for the protocol on 2026-11-10. An ordinary scene, not a hard case. Not part of any prompt set."

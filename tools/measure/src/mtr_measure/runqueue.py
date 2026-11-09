@@ -74,7 +74,7 @@ def read_check(model_dir: Path, size: str) -> dict:
 def estimate_s(check: dict) -> float:
     if check.get("kind") == "llm":
         return protocol.RUNS * (float(check.get("approx_run_s") or 60) + BASELINE_S)
-    calls = protocol.WARMUP + protocol.TIMED
+    calls = protocol.GEN_WARMUP + protocol.GEN_TIMED if check.get("kind") == "generation" else protocol.WARMUP + protocol.TIMED
     per_run = WORKER_START_S + float(check.get("load_s") or 0) + calls * float(check.get("approx_ms") or 0) / 1000 + BASELINE_S
     return protocol.RUNS * per_run
 
