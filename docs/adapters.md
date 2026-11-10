@@ -46,17 +46,20 @@ Never use `eval_predict` or `EVAL` to raise a score. They exist to match the off
 
 ### A TensorRT row
 
-Add one only where the authors publish the whole path: an export to ONNX, a TensorRT build step, and code that runs the engine ([protocol](protocol.md), "Runtimes"). `models/d-fine/adapter.py` is the example.
+Add one only where the authors publish the whole path: an export to ONNX, a TensorRT build step, and code that runs the engine ([protocol](protocol.md), "Runtimes"). `models/d-fine/adapter.py` is the example of a `trtexec` command, `models/yolo26/adapter.py` of a package that builds the engine itself.
 
 ```python
 TENSORRT = {"precision": "fp16", "builder": {"fp16": True}, "status": "runs-as-is"}
 
 def export_onnx(size: str, out: pathlib.Path) -> dict: ...    # the official export on the released checkpoint, into `out`
+# or, when one official call exports and builds:
+def export_engine(size: str, out: pathlib.Path) -> dict: ...  # that call, on the released checkpoint, into `out`
 def load_engine(size: str, engine: pathlib.Path) -> Model: ... # the engine in the official TensorRT inference code
 ```
 
-- **`TENSORRT`.** `precision` is what the official TensorRT step builds, and `builder` holds only the flags its command names (`fp16`, `bf16`, `int8`). `status` is `runs-with-fixes`, with `"patch": "fixes/<file>"`, when the official path needed a fix.
+- **`TENSORRT`.** `precision` is what the official TensorRT step builds, and `builder` holds only the flags its command names (`fp16`, `bf16`, `int8`). `status` is `runs-with-fixes`, with `"patch": "fixes/<file>"`, when the official path needed a fix. Add `"input": "640x640"` (or one per size) when the engine's input, fixed at export, differs from the PyTorch row's: the run records it.
 - **`export_onnx()`** runs the authors' export script or API with the arguments their README gives, on the released checkpoint, and returns `{"onnx": path, "exporter": "owner/repo@<commit> tools/export.py", "args": [...]}`. Record file names in `args`, not paths on your machine. The tool builds the engine from the returned file.
+- **`export_engine()`** is for a package whose official TensorRT step is one call that exports and builds, such as Ultralytics' `export(format="engine")`. Define it instead of `export_onnx()`. It returns what `export_onnx()` returns plus `"engine": path`, and optionally `"builder": {...}` with the settings the call passes TensorRT. The record says the package built the engine, with its own settings.
 - **`load_engine()`** returns a model that `predict()`, `eval_predict()` and `to_prediction()` take as they take `load()`'s. Usually they check which one they got and call the official TensorRT inference code for the engine.
 - **Its environment.** Put TensorRT and whatever the export and inference code import in a dependency group named `tensorrt`, and take NVIDIA's packages from its index:
 

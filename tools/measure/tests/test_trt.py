@@ -356,3 +356,62 @@ def test_a_tensorrt_run_writes_its_record_and_times_under_the_runtime_name(repo,
     assert record.validate(json.loads((runs / "s.tensorrt.times.json").read_text()), "run-times") == []
     # The PyTorch row's files are left alone.
     assert not (runs / "s.json").exists()
+
+
+PACKAGE_BUILD_ADAPTER = '''
+import os
+from pathlib import Path
+
+SIZES = ["s"]
+PRECISIONS = ["fp32"]
+PACKAGE = "pytest"
+INPUT = {"s": "640x448"}
+TENSORRT = {"precision": "fp16", "builder": {"fp16": True}, "input": "640x640"}
+def load(size, precision): ...
+
+def predict(model, image): ...
+
+def weight_files(size):
+    return [Path(__file__).parent / "w.pt"]
+
+def export_engine(size, out):
+    (out / "w.onnx").write_bytes(b"onnx")
+    (out / "w.engine").write_bytes(os.urandom(16))  # TensorRT times tactics, so every build gives other bytes
+    return {"engine": out / "w.engine", "onnx": out / "w.onnx", "exporter": "pytest YOLO.export", "args": ["format=engine"],
+            "builder": {"input": "1x3x640x640, static"}}
+
+def load_engine(size, engine): ...
+'''
+
+
+def test_a_package_that_builds_its_own_engine(repo, monkeypatch):
+    """export_engine(): the package's one call exports and builds, the tool keeps and records what it made."""
+    from mtr_measure import adapter as ad
+
+    model = repo / "models" / "fake-det"
+    (model / "adapter.py").write_text(PACKAGE_BUILD_ADAPTER)
+    (model / "w.pt").write_bytes(b"weights")
+    monkeypatch.setattr(trt, "trt_version", lambda: "10.16.1.11")
+    monkeypatch.setattr(ad, "package", lambda a: "pytest==1.0")
+    spec = {"adapter": str(model / "adapter.py"), "size": "s", "model": "fake-det", "gpu": "NVIDIA GeForce RTX 4090"}
+    info = trt.prepare(spec, say=lambda s: None)
+    rt = info["runtime"]
+    assert not info["reused"] and Path(info["engine"]["path"]).name == "w.engine"
+    assert rt["export"]["exporter"] == "pytest YOLO.export" and rt["engine"]["sha256"] == record.sha256_file(Path(info["engine"]["path"]))
+    assert rt["engine"]["builder"] == {"api": "pytest==1.0, which builds with TensorRT's Python API", "flags": ["FP16"],
+                                       "other": "the package's own settings", "input": "1x3x640x640, static"}
+    # Kept on the next check, built again only with --rebuild.
+    assert trt.prepare(spec, say=lambda s: None)["reused"]
+    again = trt.prepare({**spec, "rebuild": True}, say=lambda s: None)
+    assert again["engine"]["sha256"] != info["engine"]["sha256"]
+
+    # The run records the engine's own input, not the PyTorch row's.
+    a = ad.load_adapter(model / "adapter.py")
+    assert ad.input_size(a, "s", None, "tensorrt") == "640x640" and ad.input_size(a, "s", None) == "640x448"
+
+    class Both:
+        TENSORRT = {"precision": "fp16", "builder": {}}
+        export_onnx = export_engine = load_engine = staticmethod(lambda *a: None)
+
+    with pytest.raises(errors.MeasureError, match="not both"):
+        trt.adapter_spec(Both)

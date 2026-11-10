@@ -10,16 +10,23 @@ An adapter with a TensorRT row declares (docs/adapters.md):
 
     TENSORRT: dict              {"precision": "fp16", "builder": {"fp16": True}, "status": "runs-as-is"}, plus
                                 "patch": "fixes/<file>" when status is "runs-with-fixes". `builder` holds only the
-                                flags the official command names
+                                flags the official command names. "input": "WxH" (or one per size) when the engine's
+                                input, fixed at export, differs from the PyTorch row's
     export_onnx(size, out)      runs the official export on the released checkpoint, writing into the directory `out`.
                                 Returns {"onnx": Path, "exporter": str, "args": [str, ...]}
+  or
+    export_engine(size, out)    for a package whose official TensorRT step is one call that exports and builds, such as
+                                Ultralytics' export(format="engine"): runs it on the released checkpoint into `out`.
+                                Returns what export_onnx() returns, plus {"engine": Path} and optionally
+                                {"builder": {...}}, the settings the package passes TensorRT
     load_engine(size, engine)   loads the engine file with the official TensorRT inference code. predict(),
                                 eval_predict() and to_prediction() take what it returns, as they take what load() returns
 
-The wheels hold no `trtexec`, so the engine is built with TensorRT's Python API, set as trtexec sets it
+With export_onnx(), the tool builds the engine. The wheels hold no `trtexec`, so it uses TensorRT's Python API, set as trtexec sets it
 (samples/common/sampleEngines.cpp in NVIDIA/TensorRT): the flags the command names, trtexec's 8 timing iterations per
 tactic, and for an input whose ONNX shape is dynamic one optimization profile with every dynamic dimension at 1, which
-is what trtexec does when no shapes are given. Everything else stays at TensorRT's defaults.
+is what trtexec does when no shapes are given. Everything else stays at TensorRT's defaults. With export_engine(), the
+package builds it, with its own settings, and the record says so.
 
 Engines and ONNX files stay in ~/.cache/modelsthatrun/trt/<model>/<size>/ (MTR_TRT moves it), never in the checkout,
 and are never published. `check` keeps an engine and builds it again only with --rebuild, or when the weights, the
@@ -89,9 +96,12 @@ def adapter_spec(a: Any) -> dict:
     spec = getattr(a, "TENSORRT", None)
     if spec is None:
         raise MeasureError("USAGE", "This model has no TensorRT row: its adapter declares no TENSORRT (docs/adapters.md)")
-    missing = [n for n in ("export_onnx", "load_engine") if not callable(getattr(a, n, None))]
+    exports = [n for n in ("export_onnx", "export_engine") if callable(getattr(a, n, None))]
+    missing = [n for n in ("load_engine",) if not callable(getattr(a, n, None))] + ([] if exports else ["export_onnx() or export_engine()"])
     if missing or not isinstance(spec, dict):
-        raise MeasureError("ADAPTER_INTERFACE", f"An adapter with TENSORRT needs export_onnx() and load_engine(); missing {', '.join(missing) or 'a dict'}")
+        raise MeasureError("ADAPTER_INTERFACE", f"An adapter with TENSORRT needs load_engine() and export_onnx() or export_engine(); missing {', '.join(missing) or 'a dict'}")
+    if len(exports) == 2:
+        raise MeasureError("ADAPTER_INTERFACE", "An adapter with TENSORRT defines export_onnx() or export_engine(), not both")
     if spec.get("precision") not in ("fp16", "bf16", "fp32"):
         raise MeasureError("ADAPTER_INTERFACE", f"TENSORRT['precision'] must be fp16, bf16 or fp32, got {spec.get('precision')!r}")
     builder = spec.get("builder", {})
@@ -106,9 +116,12 @@ def adapter_spec(a: Any) -> dict:
     return {"precision": spec["precision"], "builder": dict(builder), "status": status, "patch": spec.get("patch")}
 
 
-def builder_settings(spec: dict) -> dict:
-    """What the record says about the build: the official command's flags, and how trtexec fills in the rest."""
+def builder_settings(spec: dict, package: str | None = None) -> dict:
+    """What the record says about the build: the official command's flags, and how trtexec fills in the rest. When the
+    package builds the engine itself (export_engine()), the flags are the ones its call sets, and the rest is its own."""
     flags = [BUILDER_FLAGS[k] for k, on in sorted(spec["builder"].items()) if on]
+    if package:
+        return {"api": f"{package}, which builds with TensorRT's Python API", "flags": flags, "other": "the package's own settings"}
     return {
         "api": "TensorRT Python API, set as trtexec sets it",
         "flags": flags,
@@ -213,7 +226,8 @@ def prepare(spec: dict, say=print) -> dict:
     version = trt_version()
     out = engine_dir(spec["model"], size)
     weights = [{"file": Path(p).name, "sha256": sha256(Path(p))} for p in a.weight_files(size) if Path(p).is_file()]
-    key = {"tensorrt": version, "builder": builder_settings(rt), "weights": weights, "gpu": spec["gpu"],
+    package = ad.package(a) if callable(getattr(a, "export_engine", None)) else None
+    key = {"tensorrt": version, "builder": builder_settings(rt, package), "weights": weights, "gpu": spec["gpu"],
            "precision": rt["precision"], "status": rt["status"], "patch": rt["patch"]}
     path = info_path(spec["model"], size)
     if path.is_file() and not spec.get("rebuild"):
@@ -228,21 +242,31 @@ def prepare(spec: dict, say=print) -> dict:
         shutil.rmtree(out)
     out.mkdir(parents=True)
 
-    say(f"export: export_onnx({size!r}) into {out}")
+    call = "export_engine" if package else "export_onnx"
+    say(f"export: {call}({size!r}) into {out}" + (f", {package}'s own export and TensorRT build; this takes minutes" if package else ""))
     t0 = time.perf_counter()
-    exported = a.export_onnx(size, out)
+    exported = getattr(a, call)(size, out)
     export_s = time.perf_counter() - t0
     onnx_path = Path(exported["onnx"])
     if not onnx_path.is_file():
-        raise MeasureError("ADAPTER_RUNTIME", f"export_onnx() returned {onnx_path}, which doesn't exist")
+        raise MeasureError("ADAPTER_RUNTIME", f"{call}() returned {onnx_path}, which doesn't exist")
     self_contained(onnx_path)
     opset = onnx_opset(onnx_path)
-    say(f"export: {onnx_path.name}, {onnx_path.stat().st_size / 2**20:.1f} MiB, opset {opset}, {export_s:.0f} s")
+    say(f"export: {onnx_path.name}, {onnx_path.stat().st_size / 2**20:.1f} MiB, opset {opset}" + ("" if package else f", {export_s:.0f} s"))
 
-    engine_path = out / "model.engine"
-    say(f"build: TensorRT {version}, flags {', '.join(builder_settings(rt)['flags']) or 'none'}; this takes minutes")
-    built = build_engine(onnx_path, engine_path, rt, say)
-    say(f"build: {engine_path.name}, {engine_path.stat().st_size / 2**20:.1f} MiB, {built['build_s']:.0f} s")
+    if package:
+        engine_path = Path(exported["engine"])
+        if not engine_path.is_file():
+            raise MeasureError("ADAPTER_RUNTIME", f"export_engine() returned {engine_path}, which doesn't exist")
+        settings = {**builder_settings(rt, package), **dict(exported.get("builder") or {})}
+        built = {"build_s": round(export_s, 1)}
+        say(f"build: {engine_path.name}, {engine_path.stat().st_size / 2**20:.1f} MiB, {export_s:.0f} s with the export")
+    else:
+        engine_path = out / "model.engine"
+        say(f"build: TensorRT {version}, flags {', '.join(builder_settings(rt)['flags']) or 'none'}; this takes minutes")
+        built = build_engine(onnx_path, engine_path, rt, say)
+        settings = {**builder_settings(rt), "shapes": built["shapes"], "optimization_level": built["optimization_level"]}
+        say(f"build: {engine_path.name}, {engine_path.stat().st_size / 2**20:.1f} MiB, {built['build_s']:.0f} s")
     info = {
         "key": key,
         "runtime": {
@@ -260,7 +284,7 @@ def prepare(spec: dict, say=print) -> dict:
             "engine": {
                 "sha256": sha256(engine_path),
                 "bytes": engine_path.stat().st_size,
-                "builder": {**builder_settings(rt), "shapes": built["shapes"], "optimization_level": built["optimization_level"]},
+                "builder": settings,
                 "built": datetime.now().astimezone().isoformat(timespec="seconds"),
                 "build_s": built["build_s"],
             },

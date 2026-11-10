@@ -96,7 +96,7 @@ def run(spec: dict) -> dict:
     result = {
         "precision": precision,
         "runtime": runtime,
-        "input": ad.input_size(a, size, x),
+        "input": ad.input_size(a, size, x, runtime),
         "latency_scope": ad.latency_scope(a),
         "times_ms": times_ms,
         "torch_max_reserved_bytes": int(torch.cuda.max_memory_reserved()),

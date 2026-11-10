@@ -151,6 +151,7 @@ A runtime is how a checkpoint's call executes. Every record names one, or means 
 - **INT8** is left out. It needs calibration images.
 
 **Building the engine.** The TensorRT wheels hold no `trtexec`. Where a README says `trtexec --onnx=… --saveEngine=… --fp16`, the tool builds with TensorRT's Python API and sets it as trtexec sets it (NVIDIA's `samples/common/sampleEngines.cpp`): the flags the command names, trtexec's 8 timing iterations per tactic, and, for an input whose ONNX shape is dynamic, one optimization profile with every dynamic dimension at 1. Everything else stays at TensorRT's defaults. The record lists these settings.
+- Where the official step is one package call that exports and builds, such as Ultralytics' `export(format="engine")`, that call builds the engine, with the package's own settings, and the record says so.
 - `mtr check --runtime tensorrt` exports and builds, in its own process before the check's calls, so the builder's memory never shows up in the check's numbers. It pauses nothing, and refuses to build while another program computes on the GPU or the idle GPU is more than 10% busy, because TensorRT picks kernels by timing them.
 - It keeps the engine, and builds it again only with `--rebuild`, or when the weights, the export, the builder settings, the TensorRT version or the GPU changed.
 - Engines and ONNX files stay in `~/.cache/modelsthatrun/trt/<model>/<size>/`. They are never published or submitted. `mtr clean` removes them.
