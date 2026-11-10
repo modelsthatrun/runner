@@ -71,9 +71,22 @@ def model_command(cmd: str, model_dir: Path, rest: list[str]) -> list[str]:
     # lock_sha256 and mark the checkout as modified. A model's first check creates its lock.
     if lock.is_file():
         uv.append("--frozen")
+    # A TensorRT row needs the model's optional `tensorrt` group (trt.py). PyTorch rows never install it.
+    if runtime_of(rest) == "tensorrt":
+        uv += ["--group", "tensorrt"]
     module = "mtr_measure.outputs" if cmd == "outputs" else "mtr_measure"
     args = [str(model_dir)] + rest
     return [*uv, "python", "-m", module, *([] if cmd == "outputs" else [cmd]), *args]
+
+
+def runtime_of(rest: list[str]) -> str | None:
+    """The value of --runtime on the command line, if any."""
+    for i, a in enumerate(rest):
+        if a == "--runtime" and i + 1 < len(rest):
+            return rest[i + 1]
+        if a.startswith("--runtime="):
+            return a.split("=", 1)[1]
+    return None
 
 
 def model_cuda(model_dir: Path) -> str | None:

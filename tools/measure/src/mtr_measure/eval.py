@@ -19,6 +19,10 @@ so with eval_predict(model, x). If the model's class names differ from the bench
 maps them in EVAL = {"label_map": {"motorbike": "motorcycle"}}. Never change these to raise a score.
 
 `--limit N` scores only the first N images. It is for trying an adapter and writes no record.
+
+`--runtime tensorrt` scores the engine `mtr check --runtime tensorrt` built, at its precision, and writes
+evals/<size>/<benchmark>.tensorrt.json naming that engine's sha256. A TensorRT row is scored before it is timed: the
+queue refuses it until this record exists (trt.py).
 """
 
 from __future__ import annotations
@@ -36,7 +40,7 @@ from pathlib import Path
 from typing import Any
 
 from . import adapter as ad
-from . import datasets, machine, protocol, record
+from . import datasets, machine, protocol, record, trt
 from .cli import Log, Parser, finish
 from .errors import MeasureError
 from .gpu import MIB, Gpu
@@ -86,6 +90,8 @@ def parse_args(argv: list[str]):
     p.add_argument("--limit", type=int, help="Score only the first N images, to try the adapter. Writes no record")
     p.add_argument("--model-id")
     p.add_argument("--gpu", type=int, default=0, help="NVML device index (default 0)")
+    p.add_argument("--runtime", default=trt.DEFAULT, choices=trt.RUNTIMES,
+                   help="tensorrt: score the engine `mtr check --runtime tensorrt` built, before it is timed")
     return p.parse_args(argv)
 
 
@@ -154,8 +160,9 @@ def main(argv: list[str], log: Log) -> int:
     if not (model_dir / "adapter.py").is_file():
         raise MeasureError("USAGE", f"No adapter.py in {model_dir}")
     model_id = args.model_id or model_dir.name
-    out = model_dir / "evals" / args.size / f"{bench.id}.json"
-    log_path = out.with_suffix(".log") if not args.limit else out.with_name(f"{bench.id}.limit.log")
+    sfx = trt.suffix(args.runtime)
+    out = model_dir / "evals" / args.size / f"{bench.id}{sfx}.json"
+    log_path = out.with_suffix(".log") if not args.limit else out.with_name(f"{bench.id}{sfx}.limit.log")
     try:
         return evaluate(args, bench, model_dir, model_id, out, log_path, log)
     except MeasureError as e:
@@ -164,9 +171,11 @@ def main(argv: list[str], log: Log) -> int:
 
 
 def evaluate(args, bench: Benchmark, model_dir: Path, model_id: str, out: Path, log_path: Path, log: Log) -> int:
-    log(f"mtr-measure eval {model_id} / {args.size} on {bench.name}" + (f" (first {args.limit} images only, no record)" if args.limit else ""))
+    on = f", {args.runtime}" if args.runtime != trt.DEFAULT else ""
+    log(f"mtr-measure eval {model_id} / {args.size}{on} on {bench.name}" + (f" (first {args.limit} images only, no record)" if args.limit else ""))
     log(f"command: {shlex.join(sys.argv)}", echo=False)
-    check = read_check(model_dir, args.size)
+    check = read_check(model_dir, args.size, args.runtime)
+    engine = trt.verify_engine(check) if args.runtime == "tensorrt" else None
     free, used = free_vram_mib(args.gpu)
     need = (check.get("approx_vram_mib") or 0) + protocol.EVAL_VRAM_MARGIN_MIB
     log(f"gpu memory: {free:.0f} MiB free ({used:.0f} MiB in use by other programs); this model needs about {need} MiB")
@@ -186,7 +195,7 @@ def evaluate(args, bench: Benchmark, model_dir: Path, model_id: str, out: Path, 
 
     a = ad.load_adapter(model_dir / "adapter.py")
     ad.check_size(a, args.size)
-    precision = ad.choose_precision(list(a.PRECISIONS))
+    precision = trt.adapter_spec(a)["precision"] if engine else ad.choose_precision(list(a.PRECISIONS))
     settings_extra = dict(getattr(a, "EVAL", {}) or {})
     label_map = dict(settings_extra.pop("label_map", {}) or {})
     if settings_extra:
@@ -194,9 +203,11 @@ def evaluate(args, bench: Benchmark, model_dir: Path, model_id: str, out: Path, 
     run = getattr(a, "eval_predict", a.predict)
     ids = label_ids(gt.loadCats(gt.getCatIds()), label_map)
     log(f"package: {ad.package(a)}, precision {precision}, {'eval_predict()' if run is not a.predict else 'predict()'}")
+    if engine:
+        log(f"engine: TensorRT {check['runtime_info']['version']}, sha256 {check['runtime_info']['engine']['sha256']}")
 
     t0 = time.perf_counter()
-    model = a.load(args.size, precision)
+    model = a.load_engine(args.size, engine) if engine else a.load(args.size, precision)
     results: list[dict] = []
     unknown: set[str] = set()
     for k, image_id in enumerate(image_ids, 1):
@@ -219,7 +230,7 @@ def evaluate(args, bench: Benchmark, model_dir: Path, model_id: str, out: Path, 
     if not results:
         raise MeasureError("EVAL", "The model made no detections on the benchmark")
 
-    preds_path = out.with_name(f"{bench.id}.predictions.json" if not args.limit else f"{bench.id}.limit.predictions.json")
+    preds_path = out.with_name(f"{bench.id}{sfx}.predictions.json" if not args.limit else f"{bench.id}{sfx}.limit.predictions.json")
     preds_path.parent.mkdir(parents=True, exist_ok=True)
     preds_path.write_text(json.dumps(results))
     with contextlib.redirect_stdout(io.StringIO()):
@@ -276,8 +287,11 @@ def evaluate(args, bench: Benchmark, model_dir: Path, model_id: str, out: Path, 
         "evaluated": datetime.now().astimezone().isoformat(timespec="seconds"),
         "duration_s": round(duration),
         "predictions_sha256": record.sha256_file(preds_path),
+        **({"runtime": trt.eval_runtime(check)} if engine else {}),
         "provenance": machine.provenance(model_dir, None),
     }
+    if engine:
+        trt.verify_engine(check)  # the same bytes from the first image to the last
     problems = record.validate(rec, "eval-record")
     for prob in problems:
         log(f"SCHEMA: {prob}")

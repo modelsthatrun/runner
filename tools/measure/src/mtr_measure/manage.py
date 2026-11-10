@@ -77,6 +77,10 @@ def cmd_clean(argv: list[str], log: Log) -> int:
         check = json.loads(f.read_text())
         checked.append(f.stem)
         targets += [Path(w) for w in check.get("weight_files", [])]
+    from . import trt
+
+    # TensorRT engines and ONNX files of every size (trt.py), kept outside the checkout.
+    targets.append(trt.model_root(model_dir.name))
     venv = model_dir / ".venv"
     if record.project_dir(model_dir) == model_dir and venv.is_dir():
         targets.append(venv)

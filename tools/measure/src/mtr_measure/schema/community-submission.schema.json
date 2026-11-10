@@ -260,6 +260,129 @@
                     ],
                     "additionalProperties": false
                   }
+                },
+                "runtime": {
+                  "description": "Absent for the official PyTorch code (pytorch-cuda). A TensorRT row says how its engine was made",
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "const": "tensorrt"
+                    },
+                    "version": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "TensorRT version, e.g. 10.16.1.11"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "runs-as-is",
+                        "runs-with-fixes"
+                      ],
+                      "description": "runs-with-fixes when the official export or inference path needed a fix"
+                    },
+                    "patch": {
+                      "description": "Path under models/<id>/fixes/ when status is runs-with-fixes",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "export": {
+                      "type": "object",
+                      "properties": {
+                        "exporter": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The official export: a script at the pinned commit, or a package function"
+                        },
+                        "args": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Its arguments, as the README or docs give them, with the released checkpoint"
+                        },
+                        "opset": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "onnx_sha256": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "onnx_bytes": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "exporter",
+                        "args",
+                        "opset",
+                        "onnx_sha256",
+                        "onnx_bytes"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "engine": {
+                      "type": "object",
+                      "properties": {
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "bytes": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "builder": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {},
+                          "description": "Builder settings: the flags the official command names, the rest at TensorRT defaults"
+                        },
+                        "built": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                        },
+                        "build_s": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "sha256",
+                        "bytes",
+                        "builder",
+                        "built",
+                        "build_s"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "version",
+                    "status",
+                    "export",
+                    "engine"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [

@@ -1,6 +1,7 @@
 """The queue of timed runs: add to it any time, then measure everything in it in one pause.
 
     mtr queue add <model> --size <size> [--input <file>]    needs a passed `mtr check`
+                  … --runtime tensorrt                       and an eval record of the checked engine
     mtr queue list                                          items and the expected time
     mtr queue run                                           measure them all
     mtr queue drop <n|all>
@@ -21,7 +22,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from . import desktop, paths, protocol, record
+from . import desktop, paths, protocol, record, trt
 from .cli import Log, Parser
 from .errors import MeasureError, emit, parse_result
 
@@ -55,11 +56,12 @@ def rel(path: Path) -> str:
         return str(path.resolve())
 
 
-def read_check(model_dir: Path, size: str) -> dict:
-    """The passed check for this checkpoint, if it still matches the adapter and the lock."""
-    path = record.check_path(model_dir, size)
+def read_check(model_dir: Path, size: str, runtime: str = trt.DEFAULT) -> dict:
+    """The passed check for this checkpoint on this runtime, if it still matches the adapter and the lock."""
+    path = record.check_path(model_dir, size, runtime)
+    flag = f" --runtime {runtime}" if runtime != trt.DEFAULT else ""
     if not path.is_file():
-        raise MeasureError("NOT_CHECKED", f"No passed check for {model_dir.name} / {size}. Run `mtr check {rel(model_dir)} --size {size}` first.")
+        raise MeasureError("NOT_CHECKED", f"No passed check for {model_dir.name} / {size}{flag}. Run `mtr check {rel(model_dir)} --size {size}{flag}` first.")
     check = json.loads(path.read_text())
     if not check.get("ok"):
         raise MeasureError("NOT_CHECKED", f"The last check of {model_dir.name} / {size} failed. Fix it and check again.")
@@ -90,6 +92,8 @@ def cmd_add(argv: list[str], log: Log) -> int:
     p.add_argument("--input", dest="inputs", type=Path, action="append", default=[],
                    help="Image and text-to-image models: the input file (default: the task's timing input). Repeat for models that take several")
     p.add_argument("--note", default="", help="Why, for whoever runs the queue, e.g. 'new adapter for RF-DETR medium'")
+    p.add_argument("--runtime", default=trt.DEFAULT, choices=trt.RUNTIMES,
+                   help="tensorrt: the engine `mtr check --runtime tensorrt` built. It must be scored first (`mtr eval --runtime tensorrt`)")
     args = p.parse_args(argv)
     model_dir = args.model_dir.resolve()
     if not (model_dir / "adapter.py").is_file():
@@ -97,17 +101,23 @@ def cmd_add(argv: list[str], log: Log) -> int:
     for f in args.inputs:
         if not f.is_file():
             raise MeasureError("USAGE", f"Input file not found: {f}")
-    check = read_check(model_dir, args.size)
+    check = read_check(model_dir, args.size, args.runtime)
+    if args.runtime != trt.DEFAULT:
+        # A runtime row is scored before it is timed (docs/protocol.md, "Runtimes"), on this very engine.
+        trt.verify_engine(check)
+        log(f"eval of this engine: {rel(trt.require_eval(model_dir, args.size, check))}")
     items = load()
     item = {"model_dir": rel(model_dir), "size": args.size, "inputs": [rel(f) for f in args.inputs]}
-    if any({k: i[k] for k in item} == item for i in items):
+    if args.runtime != trt.DEFAULT:
+        item["runtime"] = args.runtime  # older items have no key, and mean the default
+    if any({k: i.get(k) for k in item} == item and i.get("runtime", trt.DEFAULT) == args.runtime for i in items):
         return emit("OK", f"{item['model_dir']} / {args.size} is already queued", {"queued": len(items)}, log=log)
     n = max((i["n"] for i in items), default=0) + 1
     items.append({"n": n, **item, "note": args.note, "estimate_s": round(estimate_s(check)),
                   "added": datetime.now().astimezone().isoformat(timespec="seconds"), "last_error": None})
     save(items)
     total = PAUSE_OVERHEAD_S + sum(i["estimate_s"] for i in items)
-    log(f"queued #{n}: {item['model_dir']} / {args.size}")
+    log(f"queued #{n}: {item['model_dir']} / {args.size}{' on ' + args.runtime if args.runtime != trt.DEFAULT else ''}")
     log(f"{len(items)} run(s) waiting, about {minutes(total)} with the pause. Run them with `mtr queue run` when the machine can be quiet.")
     return emit("OK", f"Queued #{n}. {len(items)} run(s) waiting, about {minutes(total)}", {"queued": len(items), "estimate_s": total}, log=log)
 
@@ -120,7 +130,8 @@ def cmd_list(argv: list[str], log: Log) -> int:
     for i in items:
         err = f"  last failure: {i['last_error']['code']}: {i['last_error']['message']}" if i.get("last_error") else ""
         note = f"  ({i['note']})" if i.get("note") else ""
-        log(f"#{i['n']} {i['model_dir']} / {i['size']}  input {', '.join(i['inputs']) or 'timing input'}  ~{minutes(i['estimate_s'])}{note}{err}")
+        on = f" on {i['runtime']}" if i.get("runtime", trt.DEFAULT) != trt.DEFAULT else ""
+        log(f"#{i['n']} {i['model_dir']} / {i['size']}{on}  input {', '.join(i['inputs']) or 'timing input'}  ~{minutes(i['estimate_s'])}{note}{err}")
     total = PAUSE_OVERHEAD_S + sum(i["estimate_s"] for i in items)
     return emit("OK", f"{len(items)} run(s) waiting, about {minutes(total)} with the pause",
                 {"queued": len(items), "estimate_s": total, "items": items}, log=log)
@@ -149,6 +160,8 @@ def run_one(item: dict) -> dict:
     cmd = [sys.executable, "-m", "mtr_measure.main", "run", item["model_dir"], "--size", item["size"]]
     for f in item["inputs"]:
         cmd += ["--input", f]
+    if item.get("runtime", trt.DEFAULT) != trt.DEFAULT:
+        cmd += ["--runtime", item["runtime"]]
     proc = subprocess.Popen(cmd, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     out: list[str] = []
     assert proc.stdout
@@ -173,7 +186,12 @@ def cmd_run(argv: list[str], log: Log) -> int:
             desktop.extend_fallback()
             log(f"--- #{i['n']} {i['model_dir']} / {i['size']}")
             try:
-                read_check(paths.root() / i["model_dir"], i["size"])
+                runtime = i.get("runtime", trt.DEFAULT)
+                check = read_check(paths.root() / i["model_dir"], i["size"], runtime)
+                if runtime != trt.DEFAULT:
+                    # Again, in case the engine was built again after it was queued: its eval must be of these bytes.
+                    trt.verify_engine(check)
+                    trt.require_eval(paths.root() / i["model_dir"], i["size"], check)
                 res = run_one(i)
             except MeasureError as e:
                 res = {"status": "fail", "code": e.code, "message": str(e)}

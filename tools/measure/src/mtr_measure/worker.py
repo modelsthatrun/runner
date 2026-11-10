@@ -47,7 +47,14 @@ def run(spec: dict) -> dict:
     a = ad.load_adapter(Path(spec["adapter"]))
     size = spec["size"]
     ad.check_size(a, size)
-    precision = ad.choose_precision(list(a.PRECISIONS))
+    runtime = spec.get("runtime", "pytorch-cuda")
+    if runtime == "tensorrt":
+        from . import trt
+
+        # The engine's precision is the official TensorRT step's, not the PyTorch row's (docs/protocol.md, "Runtimes").
+        precision = trt.adapter_spec(a)["precision"]
+    else:
+        precision = ad.choose_precision(list(a.PRECISIONS))
     gen = ad.kind(a) == "generation"
     if gen:
         from . import generation, protocol
@@ -66,7 +73,7 @@ def run(spec: dict) -> dict:
     sync = torch.cuda.synchronize
 
     t = time.perf_counter()
-    model = a.load(size, precision)
+    model = a.load_engine(size, Path(spec["engine"])) if runtime == "tensorrt" else a.load(size, precision)
     sync()
     load_s = time.perf_counter() - t
 
@@ -88,6 +95,7 @@ def run(spec: dict) -> dict:
 
     result = {
         "precision": precision,
+        "runtime": runtime,
         "input": ad.input_size(a, size, x),
         "latency_scope": ad.latency_scope(a),
         "times_ms": times_ms,
