@@ -210,3 +210,71 @@ def test_adapter_spec(monkeypatch):
 
     with pytest.raises(errors.MeasureError, match="no TensorRT row"):
         trt.adapter_spec(NoRow)
+
+
+EVAL_ADAPTER = '''
+import numpy as np
+from mtr_measure.predictions import Boxes
+
+TASK = "object-detection"
+SIZES = ["s"]
+PRECISIONS = ["fp32"]
+PACKAGE = "pytest"
+INPUT = {"s": "64x48"}
+TENSORRT = {"precision": "fp16", "builder": {"fp16": True}}
+
+def load(size, precision):
+    return {"precision": precision}
+
+def export_onnx(size, out): ...
+
+def load_engine(size, engine):
+    return {"engine": engine}
+
+def predict(model, image):
+    return {"boxes": np.array([[4, 4, 32, 24]]), "scores": np.array([0.9])}
+
+def to_prediction(model, image, out):
+    return Boxes(out["boxes"], out["scores"], ["cat"])
+
+def weight_files(size):
+    return []
+'''
+
+
+@pytest.mark.parametrize("runtime", ["pytorch-cuda", "tensorrt"])
+def test_an_image_eval_scores_and_names_its_files_by_runtime(repo, monkeypatch, capsys, runtime):
+    """A one-image COCO stand-in, scored with --limit: no GPU, no record, but every step up to the score."""
+    from PIL import Image
+
+    from mtr_measure import eval as evaluate
+
+    model = repo / "models" / "fake-det"
+    (model / "adapter.py").write_text(EVAL_ADAPTER)
+    if runtime == "tensorrt":
+        trt_check(repo)
+    else:
+        pt = {"ok": True, "size": "s", "protocol": protocol.PROTOCOL_VERSION, **record.fingerprint(model), "load_s": 1.0,
+              "approx_ms": 5.0, "approx_vram_mib": 100, "weight_files": []}
+        record.check_path(model, "s").parent.mkdir(parents=True, exist_ok=True)
+        record.check_path(model, "s").write_text(json.dumps(pt))
+    coco = repo / "coco"
+    (coco / "annotations").mkdir(parents=True)
+    (coco / "val2017").mkdir()
+    Image.new("RGB", (64, 48)).save(coco / "val2017" / "a.jpg")
+    (coco / "annotations" / "instances_val2017.json").write_text(json.dumps({
+        "images": [{"id": 1, "file_name": "a.jpg", "width": 64, "height": 48}],
+        "annotations": [{"id": 1, "image_id": 1, "category_id": 17, "bbox": [4, 4, 28, 20], "area": 560, "iscrowd": 0}],
+        "categories": [{"id": 17, "name": "cat"}, {"id": 18, "name": "dog"}],
+    }))
+    monkeypatch.setattr(evaluate.machine, "pin_gpu", lambda index: None)
+    monkeypatch.setattr(evaluate, "free_vram_mib", lambda index: (20000.0, 0.0))
+    monkeypatch.setattr(evaluate.datasets, "ensure", lambda d, say=print: coco)
+
+    assert evaluate.main([str(model), "--size", "s", "--benchmark", "coco-val2017-bbox", "--limit", "1", "--runtime", runtime],
+                         cli.Log()) == 0
+    out = result(capsys)
+    assert out["outputs"]["value"] == 100.0
+    sfx = trt.suffix(runtime)
+    assert (model / "evals" / "s" / f"coco-val2017-bbox{sfx}.limit.predictions.json").is_file()
+    assert (model / "evals" / "s" / f"coco-val2017-bbox{sfx}.limit.log").is_file()

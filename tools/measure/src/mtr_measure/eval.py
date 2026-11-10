@@ -230,6 +230,7 @@ def evaluate(args, bench: Benchmark, model_dir: Path, model_id: str, out: Path, 
     if not results:
         raise MeasureError("EVAL", "The model made no detections on the benchmark")
 
+    sfx = trt.suffix(args.runtime)
     preds_path = out.with_name(f"{bench.id}{sfx}.predictions.json" if not args.limit else f"{bench.id}{sfx}.limit.predictions.json")
     preds_path.parent.mkdir(parents=True, exist_ok=True)
     preds_path.write_text(json.dumps(results))

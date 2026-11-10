@@ -286,7 +286,7 @@ def cmd_check(argv: list[str], log: Log) -> int:
     path = write_check(model_dir, args.size, check, args.runtime)
     log(f"wrote {path}")
     if args.runtime == "tensorrt":
-        log(f"next: `mtr eval --runtime tensorrt` on this engine. The queue refuses a TensorRT row until it is scored")
+        log("next: `mtr eval --runtime tensorrt` on this engine. The queue refuses a TensorRT row until it is scored")
     else:
         log("next: `mtr run` (or `mtr queue add`) for the timed run, and `mtr eval` for accuracy")
     return finish(log, log_path, "OK", f"{model_id} / {args.size} works: load {worker['load_s']:.1f} s, {summary}",
