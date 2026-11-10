@@ -8,11 +8,15 @@ casts the model and input to fp16 (its default), so fp16 is the official precisi
 draws people above its threshold (0.45; its help suggests about 0.3 for pose) and predict() keeps
 the same 0.45. There is no keypoint benchmark in the tool yet, so there is no eval_predict().
 
-The README's latencies use an optional fused CUDA GLA kernel (engine/gtr/backbone/csrc), whose
-build needs nvcc to match torch's cu128; the reference machine has CUDA 12.4. Without it the backbone uses
-flash-linear-attention's Triton kernel, which the README names as the fallback.
+The README's install step can also build an optional fused CUDA GLA kernel
+(engine/gtr/backbone/csrc/build.sh), which its latencies use. The adapter keeps it off and runs the
+repository's default, flash-linear-attention's Triton kernel. The fused kernel scales each 64-token
+chunk by exp() of the cumulative log gate without rescaling (csrc/gla_chunk.cuh), so it returns NaN
+once a chunk's gates add up below about -88. Every released GTR, GTR-Seg and GTR-Pose checkpoint
+returned NaN from the first block; the repository's own tests and benchmarks use milder gates or random weights.
 """
 
+import os
 import subprocess
 import sys
 
@@ -44,6 +48,8 @@ def package_version():
 
 
 def checkout():
+    # Read when engine/gtr/backbone/vit_adapter.py is imported: keep the fused kernel off, even if built.
+    os.environ["GTR_DISABLE_CUDA_GLA"] = "1"
     if not (REPO / ".git").is_dir():
         subprocess.run(["git", "clone", "-q", REPO_URL, str(REPO)], check=True)
     head = subprocess.run(["git", "-C", str(REPO), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
@@ -52,6 +58,13 @@ def checkout():
         subprocess.run(["git", "-C", str(REPO), "checkout", "-q", COMMIT], check=True)
     if str(REPO) not in sys.path:
         sys.path.insert(0, str(REPO))
+
+
+def refuse_gla_kernel(net):
+    gla = [m for m in net.modules() if hasattr(m, "_use_cuda_chunk_gla")]
+    if any(m._use_cuda_chunk_gla for m in gla):
+        raise RuntimeError("GTR's fused CUDA GLA kernel is in use, and it returns NaN on the released checkpoints. "
+                           "Set GTR_DISABLE_CUDA_GLA=1 before engine is imported")
 
 
 def weight_files(size):
@@ -87,7 +100,9 @@ def load(size, precision):
     dtype = DTYPES[precision]
     h, w = cfg.yaml_cfg["eval_spatial_size"]
     transforms = T.Compose([T.Resize((h, w)), T.ToTensor(), T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
-    return {"net": Model().to("cuda", dtype=dtype), "dtype": dtype, "transforms": transforms}
+    net = Model().to("cuda", dtype=dtype)
+    refuse_gla_kernel(net)
+    return {"net": net, "dtype": dtype, "transforms": transforms}
 
 
 # COCO's keypoint names and skeleton (person_keypoints_val2017.json), 0-based.
@@ -97,13 +112,28 @@ SKELETON = [(15, 13), (13, 11), (16, 14), (14, 12), (11, 12), (5, 11), (6, 12), 
             (1, 2), (0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6)]
 
 
+# predict() in the three phases `mtr profile` times apart: the tensor on the GPU, the network, and the decoded result.
 @torch.inference_mode()
-def predict(m, x):
+def preprocess(m, x):
+    return m["transforms"](x).unsqueeze(0).to("cuda", dtype=m["dtype"])
+
+
+@torch.inference_mode()
+def forward(m, images):
+    return m["net"].model(images)
+
+
+@torch.inference_mode()
+def postprocess(m, raw, x):
     w, h = x.size
-    images = m["transforms"](x).unsqueeze(0).to("cuda", dtype=m["dtype"])
-    scores, labels, keypoints = m["net"](images, torch.tensor([[w, h]], device="cuda"))
+    scores, labels, keypoints = m["net"].postprocessor(raw, torch.tensor([[w, h]], device="cuda"))
     keep = scores[0] > THRESHOLD
     return scores[0][keep].float().cpu(), keypoints[0][keep].float().cpu()
+
+
+@torch.inference_mode()
+def predict(m, x):
+    return postprocess(m, forward(m, preprocess(m, x)), x)
 
 
 def to_prediction(m, x, out):
