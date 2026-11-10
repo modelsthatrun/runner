@@ -59,6 +59,11 @@ def predict(m, x):
     return m["model"].predict(x, imgsz=IMGSZ, quantize=m["quantize"], device=0, verbose=False)[0]
 
 
+def phase_times(m, out):
+    # Ultralytics times its own phases per image, each closed by a synchronize (ultralytics/utils/ops.py, Profile).
+    return {"preprocess": out.speed["preprocess"], "forward": out.speed["inference"], "postprocess": out.speed["postprocess"]}
+
+
 @torch.inference_mode()
 def eval_predict(m, x):
     # The docs' mask AP comes from `yolo segment val data=coco.yaml nms=False`: the NMS-free head,

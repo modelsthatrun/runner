@@ -10,7 +10,10 @@ with the CPU's part left as it is.
 It is not a timed measurement. It runs the model's worker once:
   1. load the checkpoint as `mtr run` does, at the same precision and on the same input
   2. WARMUP calls, then PLAIN calls timed like a timed run's, without the profiler
-  3. PROFILER_WARMUP + PROFILED calls under torch.profiler (CUPTI). The first PROFILER_WARMUP are dropped.
+  3. if the adapter splits a call into phases (adapter.py, "Optional"), PHASED calls with a synchronize after each
+     phase: pre-processing, the network, post-processing. The synchronizes stop the CPU and GPU from overlapping,
+     so the phases need not add up to a plain call
+  4. PROFILER_WARMUP + PROFILED calls under torch.profiler (CUPTI). The first PROFILER_WARMUP are dropped.
 Each profiled call is one window, closed by a synchronize, so every kernel it launched ran inside it. Per
 kernel name, the record keeps the median over the windows of its launches, its GPU time, and its GPU-bound
 time: the time of launches the GPU went straight on from, because the next work was already queued or the
@@ -46,6 +49,7 @@ WARMUP = 10
 PLAIN = 50
 PROFILER_WARMUP = 3
 PROFILED = 20
+PHASED = 20
 # A text-to-image call makes one image: seconds of work and hundreds of thousands of kernels, so fewer calls
 # give as steady a median and keep the trace small enough to hold in memory.
 GEN_WARMUP = 2
@@ -170,6 +174,7 @@ def run(spec: dict) -> dict:
         a.predict(model, x)
         sync()
         plain.append((time.perf_counter() - t0) * 1000)
+    phases = None if gen else phase_calls(a, model, x, sync)
 
     with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
         for _ in range(p_warmup + n_profiled):
@@ -189,6 +194,7 @@ def run(spec: dict) -> dict:
         "input": ad.input_size(a, size, x),
         "warmup": warmup,
         "plain_ms": plain,
+        "phases": phases,
         **agg,
         "weights": [str(Path(p).resolve()) for p in a.weight_files(size)],
         "env": {
@@ -207,6 +213,48 @@ def run(spec: dict) -> dict:
             },
         },
         "device": torch.cuda.get_device_name(),
+    }
+
+
+def phase_calls(a: Any, model: Any, x: Any, sync: Any) -> dict | None:
+    """PHASED calls split into phases, each closed by a synchronize; per phase and for the whole call, ms per call."""
+    source = ad.phase_source(a)
+    if source is None:
+        return None
+    out: dict[str, Any] = {"source": source, **{k: [] for k in ad.PHASES}, "call": []}
+    for _ in range(PHASED):
+        sync()
+        t0 = time.perf_counter()
+        if source == "adapter":
+            inp = a.preprocess(model, x)
+            sync()
+            t1 = time.perf_counter()
+            raw = a.forward(model, inp)
+            sync()
+            t2 = time.perf_counter()
+            a.postprocess(model, raw, x)
+            sync()
+            t3 = time.perf_counter()
+            parts = {"preprocess": (t1 - t0) * 1000, "forward": (t2 - t1) * 1000, "postprocess": (t3 - t2) * 1000}
+        else:
+            res = a.predict(model, x)
+            sync()
+            t3 = time.perf_counter()
+            parts = ad.package_phases(a, model, res)
+        for k in ad.PHASES:
+            out[k].append(parts[k])
+        out["call"].append((t3 - t0) * 1000)
+    return out
+
+
+def summarize_phases(ph: dict) -> dict:
+    """The record's phases block: medians over the phased calls."""
+    med = statistics.median
+    return {
+        "source": ph["source"],
+        "calls": len(ph["call"]),
+        **{f"{k}_ms": round(med(ph[k]), 3) for k in ad.PHASES},
+        "call_ms": round(med(ph["call"]), 3),
     }
 
 
@@ -249,6 +297,7 @@ def build(*, model: str, size: str, weights: list[dict], worker: dict, gpu_name:
             "gpu_busy_ms": worker["gpu_busy_ms"],
             "bound_gap_us": BOUND_GAP_US,
             "kernels": worker["kernels"],
+            **({"phases": summarize_phases(worker["phases"])} if worker.get("phases") else {}),
             "env": {"gpu": gpu_name, "driver": driver, **worker["env"], **facts},
             "profiled": profiled,
         },
@@ -301,7 +350,8 @@ def cmd_profile(argv: list[str], log: Any) -> int:
                 raise MeasureError("GPU_BUSY", f"The idle GPU is {util:.0f}% busy. Close videos, games or other GPU work.")
             counts = (GEN_WARMUP, GEN_PLAIN, GEN_PROFILER_WARMUP, GEN_PROFILED) if ad.kind_of_file(model_dir / "adapter.py") == "generation" \
                 else (WARMUP, PLAIN, PROFILER_WARMUP, PROFILED)
-            log("running the worker: load, {} warm-up and {} plain calls, then {} + {} calls under the profiler".format(*counts))
+            log("running the worker: load, {} warm-up and {} plain calls, phased calls if the adapter splits them, "
+                "then {} + {} calls under the profiler".format(*counts))
             worker, _ = spawn_worker(spec, gpu, args.poll_ms, args.gpu, "mtr_measure.profile")
         finally:
             gpu.close()
@@ -327,6 +377,10 @@ def cmd_profile(argv: list[str], log: Any) -> int:
     log(f"flags after load: {pr['env']['flags']}")
     log(f"plain calls: median {wall} ms; under the profiler {pr['profiled_wall_ms']} ms")
     log(f"gpu busy: {pr['gpu_busy_ms']} ms per call ({pr['gpu_busy_ms'] / wall:.0%} of a plain call), {len(pr['kernels'])} kernels and copies")
+    if "phases" in pr:
+        ph = pr["phases"]
+        log(f"phases ({ph['source']}, {ph['calls']} calls, a synchronize after each): pre-processing {ph['preprocess_ms']} ms, "
+            f"network {ph['forward_ms']} ms, post-processing {ph['postprocess_ms']} ms; the whole call {ph['call_ms']} ms")
     for k in pr["kernels"][:12]:
         log(f"  {k['ms']:8.3f} ms  bound {k['bound_ms']:7.3f}  x{k['count']:<5g} {k['kind']:<7} {k['name'][:140]}")
     for k in pr["kernels"]:

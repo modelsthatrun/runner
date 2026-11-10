@@ -26,6 +26,13 @@ Optional:
                                   evaluation's lower score threshold
     eval_predict(model, x)        use instead of predict() for accuracy, when the official
                                   evaluation calls the model differently from its README
+    preprocess(model, x)          predict() in its three phases, for the phase split in `mtr profile`:
+    forward(model, inp)           what the CPU does before the network, the network, and what comes after.
+    postprocess(model, raw, x)    predict(model, x) must return postprocess(model, forward(model,
+                                  preprocess(model, x)), x). Define all three or none
+    phase_times(model, out)       instead of those three, when the official package times its own phases:
+                                  {"preprocess": ms, "forward": ms, "postprocess": ms} for the call that
+                                  returned `out`, each phase closed by a synchronize
 
 Text-to-image models (KIND = "generation") run a pipeline on a prompt (models/_template-gen/adapter.py).
 Required:
@@ -70,6 +77,8 @@ from typing import Any
 from .errors import MeasureError
 
 KNOWN_PRECISIONS = ("fp16", "fp32", "bf16")
+PHASE_HOOKS = ("preprocess", "forward", "postprocess")
+PHASES = ("preprocess", "forward", "postprocess")
 DEFAULT_SCOPE = "predict(): pre-processing, forward pass and post-processing; input file decoded beforehand"
 
 
@@ -192,6 +201,30 @@ def check_interface(a: Any) -> None:
     unknown = [p for p in a.PRECISIONS if p not in KNOWN_PRECISIONS]
     if unknown or not a.PRECISIONS:
         raise AdapterError(f"PRECISIONS must list some of {KNOWN_PRECISIONS}, got {a.PRECISIONS}")
+    hooks = [n for n in PHASE_HOOKS if callable(getattr(a, n, None))]
+    if hooks and len(hooks) != len(PHASE_HOOKS):
+        raise AdapterError(f"Define all of {', '.join(f'{n}()' for n in PHASE_HOOKS)} or none; the adapter has only {', '.join(hooks)}")
+    if hooks and hasattr(a, "phase_times"):
+        raise AdapterError("Define either preprocess(), forward() and postprocess(), or phase_times(), not both")
+
+
+def phase_source(a: Any) -> str | None:
+    """Who splits a call into phases for `mtr profile`: "adapter" (its three hooks), "package" (phase_times()), or None."""
+    if kind(a) != "image":
+        return None
+    if all(callable(getattr(a, n, None)) for n in PHASE_HOOKS):
+        return "adapter"
+    if callable(getattr(a, "phase_times", None)):
+        return "package"
+    return None
+
+
+def package_phases(a: Any, model: Any, out: Any) -> dict[str, float]:
+    """phase_times() checked: a number of milliseconds for each phase."""
+    got = a.phase_times(model, out)
+    if not isinstance(got, dict) or any(not isinstance(got.get(k), (int, float)) or got[k] < 0 for k in PHASES):
+        raise AdapterError(f"phase_times() must return {{{', '.join(f'{k!r}: ms' for k in PHASES)}}}, got {got!r}")
+    return {k: float(got[k]) for k in PHASES}
 
 
 def choose_precision(supported: list[str]) -> str:

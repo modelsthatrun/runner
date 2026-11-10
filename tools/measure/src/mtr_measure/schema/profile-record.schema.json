@@ -171,6 +171,54 @@
             "additionalProperties": false
           }
         },
+        "phases": {
+          "description": "Present when the adapter, or its package, splits a call into phases",
+          "type": "object",
+          "properties": {
+            "source": {
+              "type": "string",
+              "enum": [
+                "adapter",
+                "package"
+              ],
+              "description": "Who split the call: the adapter's preprocess(), forward() and postprocess(), or the official package's own phase timer"
+            },
+            "calls": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "preprocess_ms": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Median per call: from the decoded input to the tensor on the GPU"
+            },
+            "forward_ms": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Median per call: the network"
+            },
+            "postprocess_ms": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Median per call: from the network's output to predict()'s result"
+            },
+            "call_ms": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Median wall time of the same calls, end to end"
+            }
+          },
+          "required": [
+            "source",
+            "calls",
+            "preprocess_ms",
+            "forward_ms",
+            "postprocess_ms",
+            "call_ms"
+          ],
+          "additionalProperties": false
+        },
         "env": {
           "type": "object",
           "properties": {

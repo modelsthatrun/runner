@@ -98,11 +98,29 @@ def eval_predict(m, x):
     return labels[0].cpu(), boxes[0].cpu(), scores[0].cpu()
 
 
+# predict() in the three phases `mtr profile` times apart: the tensor on the GPU, the network, and the decoded result.
 @torch.inference_mode()
-def predict(m, x):
-    labels, boxes, scores = eval_predict(m, x)
+def preprocess(m, x):
+    return m["transforms"](x).unsqueeze(0).to("cuda")
+
+
+@torch.inference_mode()
+def forward(m, images):
+    return m["net"].model(images)
+
+
+@torch.inference_mode()
+def postprocess(m, raw, x):
+    w, h = x.size
+    labels, boxes, scores = m["net"].postprocessor(raw, torch.tensor([[w, h]], device="cuda"))
+    labels, boxes, scores = labels[0].cpu(), boxes[0].cpu(), scores[0].cpu()
     keep = scores > THRESHOLD
     return labels[keep], boxes[keep], scores[keep]
+
+
+@torch.inference_mode()
+def predict(m, x):
+    return postprocess(m, forward(m, preprocess(m, x)), x)
 
 
 def to_prediction(m, x, out):

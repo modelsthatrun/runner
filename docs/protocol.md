@@ -163,13 +163,21 @@ Text-to-image models are timed like image models (Latency, VRAM), with these dif
 - **The calls.**
   1. Load the checkpoint, then 10 warm-up calls.
   2. 50 plain calls, timed as in a timed run, without the profiler.
-  3. 23 calls under `torch.profiler`. The first 3 are dropped.
+  3. If the adapter splits a call into phases, 20 phased calls (see below).
+  4. 23 calls under `torch.profiler`. The first 3 are dropped.
 
   A text-to-image call takes seconds and launches hundreds of thousands of kernels, so it makes 2 warm-up, 5 plain and 1 + 3 profiled calls.
 - **Each profiled call is one window.** It is closed by a synchronize, so every kernel and copy it started ran inside it. Per kernel name, the record keeps the median over the windows of:
   - its launches
   - its GPU time
   - its GPU-bound time: the time of launches that the GPU went straight on from, because the next work was already queued (started within 2 µs) or the call was waiting for it
+- **Phases.** A phased call is split into pre-processing (from the decoded input to the tensor on the GPU), the network, and post-processing (from the network's output to `predict()`'s result). The record keeps each phase's median, and the median of the whole call.
+  - Who splits it:
+    - the adapter's `preprocess()`, `forward()` and `postprocess()`, with a synchronize after each phase (`source: "adapter"`)
+    - or the official package's own phase timer, read with `phase_times()`, when it closes each phase with a synchronize itself (`source: "package"`; Ultralytics does)
+  - The synchronizes stop the CPU and the GPU from working at the same time, so the phases needn't add up to a plain call. They show where a call's time goes, not a second latency.
+  - A package's timer may leave some of the call outside its phases, such as reading the input. The whole call's median shows how much.
+  - Models whose adapter doesn't split a call have no phases.
 - **What it records about the build.** It records the PyTorch build's GPU architectures and the settings that decide whether fp32 work runs on tensor cores. Those settings are TF32 for matmuls and for cuDNN, and the fp32 matmul precision. It reads them after the model has loaded.
 - **Its limits.**
   - Kernel times come from the GPU's own clock, so the profiler's overhead doesn't change them.

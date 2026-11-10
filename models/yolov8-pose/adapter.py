@@ -54,6 +54,11 @@ def predict(m, x):
     return m["model"].predict(x, imgsz=IMGSZ, quantize=m["quantize"], device=0, verbose=False)[0]
 
 
+def phase_times(m, out):
+    # Ultralytics times its own phases per image, each closed by a synchronize (ultralytics/utils/ops.py, Profile).
+    return {"preprocess": out.speed["preprocess"], "forward": out.speed["inference"], "postprocess": out.speed["postprocess"]}
+
+
 def weight_files(size):
     return [WEIGHTS / f"yolov8{size}-pose.pt"]
 
