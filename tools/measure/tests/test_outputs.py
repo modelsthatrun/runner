@@ -361,3 +361,37 @@ def test_coco_detections_map_names_and_keep_the_top_100():
     assert all(d["image_id"] == 7 for d in out)
     ev.coco_detections(Boxes([[0, 0, 1, 1]], [0.5], ["unicorn"]), 7, ids, "bbox", unknown)
     assert unknown == {"unicorn"}
+
+
+def checked_adapter(tmp_path: Path, rows: list):
+    weights = tmp_path / "w.pth"
+    weights.write_bytes(b"w")
+    return types.SimpleNamespace(
+        weight_files=lambda size: [weights],
+        predict=lambda m, x: rows,
+        to_prediction=lambda m, x, out: Boxes(np.array(out, dtype=np.float32).reshape(-1, 4), np.full(len(out), 0.9), ["person"] * len(out)),
+    )
+
+
+def test_check_refuses_nan_and_a_timing_call_that_finds_nothing(tmp_path: Path):
+    from mtr_measure import timing, worker
+    from mtr_measure.errors import MeasureError
+
+    task = "object-detection"
+    default = timing.input_for(task)
+    other = tmp_path / "other.jpg"
+    other.write_bytes(b"")
+
+    notes = worker.check_more(checked_adapter(tmp_path, [[0, 0, 4, 4]] * 2), None, None, "s", task, [default])
+    assert "to_prediction(): Boxes with 2 item(s) for object-detection" in notes
+
+    with pytest.raises(MeasureError, match=r"predict\(\)'s output: Boxes: xyxy has NaN") as e:
+        worker.check_more(checked_adapter(tmp_path, [[float("nan")] * 4]), None, None, "s", task, [default])
+    assert e.value.code == "ADAPTER_RUNTIME"
+
+    # A display threshold drops NaN scores, so an all-NaN model finds nothing: refused on the task's own timing input,
+    # and only a note on another input, where finding nothing can be right.
+    with pytest.raises(MeasureError, match=f"found nothing on {default.name}") as e:
+        worker.check_more(checked_adapter(tmp_path, []), None, None, "s", task, [default])
+    assert e.value.code == "ADAPTER_RUNTIME"
+    assert "predict() found nothing on this input" in worker.check_more(checked_adapter(tmp_path, []), None, None, "s", task, [other])

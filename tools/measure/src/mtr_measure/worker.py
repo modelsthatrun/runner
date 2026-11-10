@@ -6,8 +6,9 @@ parent can take the baseline again afterwards. A timed measurement starts it onc
 Usage: python -m mtr_measure.worker <spec.json>
 
 In "check" mode it makes a few calls and also checks the weight files and, when the spec names a
-task, that to_prediction() returns the task's standard type. Whatever fails, it writes a result
-with a code (errors.py), so the parent can report it.
+task, the output: to_prediction() returns the task's standard type, and predict() finds something
+on the task's timing input. Whatever fails, it writes a result with a code (errors.py), so the
+parent can report it.
 """
 
 from __future__ import annotations
@@ -106,11 +107,11 @@ def run(spec: dict) -> dict:
     if gen:
         result["generation"] = generation.recorded(x, generation.scheduler(a, model))
     if spec.get("mode") == "check":
-        result["checks"] = check_more(a, model, x, size, spec.get("task"))
+        result["checks"] = check_more(a, model, x, size, spec.get("task"), [Path(p) for p in spec["inputs"]])
     return result
 
 
-def check_more(a: Any, model: Any, x: Any, size: str, task: str | None) -> list[str]:
+def check_more(a: Any, model: Any, x: Any, size: str, task: str | None, inputs: list[Path] | None = None) -> list[str]:
     """What `mtr check` verifies beyond a working predict(). Raises on the first problem."""
     notes = []
     missing = [str(p) for p in a.weight_files(size) if not Path(p).is_file()]
@@ -126,10 +127,27 @@ def check_more(a: Any, model: Any, x: Any, size: str, task: str | None) -> list[
         notes.append(f"predict(): a {img.size[0]}x{img.size[1]} image, {x.steps} steps at guidance {x.guidance:g}, seed {x.seed} on {x.generator}")
         return notes
     if task:
-        pred = ad.to_prediction(a, model, x, a.predict(model, x), task)
+        from . import timing
+        from .predictions import PredictionError
+
+        try:
+            pred = ad.to_prediction(a, model, x, a.predict(model, x), task)
+        except PredictionError as e:
+            raise MeasureError("ADAPTER_RUNTIME", f"to_prediction() on predict()'s output: {e}") from e
         # Alpha and Depth are one map per image, so they have no length.
         what = f"with {len(pred)} item(s)" if hasattr(pred, "__len__") else "of one map"
         notes.append(f"to_prediction(): {type(pred).__name__} {what} for {task}")
+        if hasattr(pred, "__len__") and len(pred) == 0:
+            # A display threshold also drops NaN scores, so a model whose outputs are all NaN gets here with nothing
+            # found. And a call that finds nothing skips the work that depends on what was found.
+            default = timing.input_for(task)
+            if default is not None and inputs and [p.resolve() for p in inputs] == [default.resolve()]:
+                raise MeasureError(
+                    "ADAPTER_RUNTIME",
+                    f"predict() found nothing on {default.name}, the input every {task} model is timed on. A score threshold "
+                    "also drops NaN scores, so look at the model's raw outputs before timing it",
+                )
+            notes.append("predict() found nothing on this input")
     else:
         notes.append("to_prediction(): not checked (the adapter declares no TASK and there was no --task)")
     return notes

@@ -207,7 +207,8 @@ Matting and depth outputs have no scores, so they have no threshold.
 2. **`mtr check <model> --size <size>`.**
    - It pauses nothing and writes no record.
    - It downloads the weights, and builds llama.cpp on first use, so nothing slow happens during a timed run.
-   - It loads the model, makes a few calls, validates the output types and shows approximate numbers.
+   - It loads the model, makes a few calls, validates the outputs and shows approximate numbers.
+   - The output must be the task's prediction type, with no NaN. On the task's timing input `predict()` must also find something: a call that finds nothing doesn't run the model's whole path, and a score threshold hides outputs that are all NaN.
    - A pass writes `.check/<size>.json`, tied to the hashes of `adapter.py` and `uv.lock`.
 3. **`mtr run <model> --size <size>`** (or `mtr bench` for check and run together). For each of the three runs it:
    1. checks the machine

@@ -33,7 +33,7 @@ def to_prediction(model, x, out): ...                # predict()'s output as the
 | `LATENCY_SCOPE` | One `predict()` call covers something other than pre-processing, forward and post-processing |
 | `eval_predict(model, x)` | The official evaluation calls the model differently from its README, e.g. a lower score threshold. `mtr eval` uses it instead of `predict()` |
 | `EVAL = {"label_map": {...}}` | The model's class names differ from the benchmark's, e.g. `{"motorbike": "motorcycle"}` |
-| `preprocess(model, x)`, `forward(model, inp)`, `postprocess(model, raw, x)` | You can split `predict()` into its phases, for `mtr profile`'s phase split ([protocol](protocol.md), "Profiles"). `predict(model, x)` must return `postprocess(model, forward(model, preprocess(model, x)), x)`; the simplest way is to define it as exactly that. Define all three or none |
+| `preprocess(model, x)`, `forward(model, inp)`, `postprocess(model, raw, x)` | You can split `predict()` into its phases, for `mtr profile`'s phase split ([protocol](protocol.md), "Profiles"). `predict(model, x)` must return `postprocess(model, forward(model, preprocess(model, x)), x)`; the simplest way is to define it as exactly that. The split needs all three. With fewer there is no split, and the functions are the adapter's own helpers |
 | `phase_times(model, out)` | Instead of the three above, when the official package times its own phases and closes each with a synchronize. Return `{"preprocess": ms, "forward": ms, "postprocess": ms}` for the call that returned `out`. `models/yolo26/adapter.py` reads Ultralytics' `Results.speed` |
 
 Never use `eval_predict` or `EVAL` to raise a score. They exist to match the official evaluation.
@@ -101,7 +101,7 @@ def weight_files(size): ...       # every weight file load() read, the denoiser'
 
 `to_prediction()` returns one of the standard types in `mtr_measure.predictions`.
 - `mtr eval` and `mtr outputs` read predictions through it.
-- `mtr check` checks that it returns the task's type.
+- `mtr check` checks that it returns the task's type, and that `predict()` finds something on the task's timing input.
 - Timing never calls it.
 
 | Task | Type | Fields |
