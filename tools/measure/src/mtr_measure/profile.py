@@ -317,6 +317,12 @@ def cmd_profile(argv: list[str], log: Any) -> int:
                 provenance=machine.provenance(model_dir, inputs), profiled=profiled)
     pr = rec["profile"]
     wall = pr["wall_ms"]["median"]
+    if not pr["kernels"] or pr["gpu_busy_ms"] <= 0:
+        # The calls ran, so the GPU did work: an empty trace means the profiler lost it, not that the call is all CPU.
+        # Seen when a model leaves almost no GPU memory free. A record saying 0% would make every estimate wrong.
+        log(f"plain calls: median {wall} ms; under the profiler {pr['profiled_wall_ms']} ms, but the profiler recorded no GPU kernels")
+        return finish(log, log_path, "FAILED", "The profiler recorded no GPU kernels, so no profile was written. Run it again with nothing else "
+                      "on the GPU; if it repeats, the model may leave the profiler too little GPU memory", warnings=warnings)
     log(f"precision {pr['precision']}, input {pr['input']}, torch {pr['env']['torch']}, cuDNN {pr['env']['cudnn']}")
     log(f"flags after load: {pr['env']['flags']}")
     log(f"plain calls: median {wall} ms; under the profiler {pr['profiled_wall_ms']} ms")
