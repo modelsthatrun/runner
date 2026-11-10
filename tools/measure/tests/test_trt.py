@@ -278,3 +278,81 @@ def test_an_image_eval_scores_and_names_its_files_by_runtime(repo, monkeypatch, 
     sfx = trt.suffix(runtime)
     assert (model / "evals" / "s" / f"coco-val2017-bbox{sfx}.limit.predictions.json").is_file()
     assert (model / "evals" / "s" / f"coco-val2017-bbox{sfx}.limit.log").is_file()
+
+
+def test_a_tensorrt_run_writes_its_record_and_times_under_the_runtime_name(repo, monkeypatch, capsys):
+    """`mtr run --runtime tensorrt` end to end on the CPU: the GPU, the CPU window and the worker are stand-ins."""
+    from types import SimpleNamespace
+
+    model = repo / "models" / "fake-det"
+    (model / "adapter.py").write_text(EVAL_ADAPTER)
+    weight = model / "w.pth"
+    weight.write_bytes(b"weights")
+    check = trt_check(repo)
+    MIB = 2**20
+
+    class FakeGpu:
+        def __init__(self, index):
+            pass
+
+        def name(self):
+            return "NVIDIA GeForce RTX 4090"
+
+        def driver(self):
+            return "580.173.02"
+
+        def processes(self):
+            return []
+
+        def close(self):
+            pass
+
+    class Window:
+        def start(self):
+            return self
+
+        def others(self):
+            return 0.01
+
+    ok = SimpleNamespace(ok=lambda: True, warnings=[], codes=[], errors=[], lines=[])
+    specs = []
+
+    def spawn_worker(spec, gpu, poll_ms, index, module):
+        specs.append(spec)
+        worker = {"precision": "fp16", "runtime": "tensorrt", "input": "640x640", "latency_scope": "predict()",
+                  "times_ms": [5.0 + i / 1000 for i in range(spec["timed"])], "torch_max_reserved_bytes": 2 * MIB,
+                  "weights": [str(weight)], "weight_links": [str(weight)],
+                  "env": {"cuda": "13.0", "torch": "2.14.1", "python": "3.12.9", "package": "pytest"},
+                  "load_s": 1.0, "output": "Boxes", "device": "NVIDIA GeForce RTX 4090"}
+        return worker, SimpleNamespace(peak_bytes=900 * MIB)
+
+    monkeypatch.setattr(cli, "Gpu", FakeGpu)
+    monkeypatch.setattr(cli.cpu, "Window", Window)
+    monkeypatch.setattr(cli, "sample_for", lambda gpu, seconds, poll_ms: SimpleNamespace(median_bytes=500 * MIB))
+    monkeypatch.setattr(cli.checks, "before_run", lambda *a: ok)
+    monkeypatch.setattr(cli.checks, "after_run", lambda *a: ok)
+    monkeypatch.setattr(cli, "spawn_worker", spawn_worker)
+    monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+    monkeypatch.setattr(cli.desktop, "paused", lambda log: __import__("contextlib").nullcontext())
+    monkeypatch.setattr(cli.machine, "facts", lambda gpu: {"cpu": "Test CPU", "gpu_memory_mib": 24564, "compute_capability": "8.9",
+                                                           "os": "Linux", "power_limit_w": 450, "power_default_w": 450})
+    args = ["run", str(model), "--size", "s", "--input", str(repo / "timing.jpg"), "--runtime", "tensorrt"]
+
+    # Not scored yet: refused before anything runs.
+    assert cli.main(args) == errors.exit_code("NOT_SCORED")
+    assert not specs
+    capsys.readouterr()
+
+    write_eval(repo, engine_sha(repo))
+    assert cli.main(args) == 0, result(capsys)
+    assert all(s["runtime"] == "tensorrt" and s["engine"] == check["engine"] for s in specs) and len(specs) == protocol.RUNS
+    runs = model / "runs"
+    # The refused attempt left its failed log, under the runtime's name too.
+    assert sorted(p.name for p in runs.iterdir()) == ["s.tensorrt.failed.log", "s.tensorrt.json", "s.tensorrt.log", "s.tensorrt.times.json"]
+    rec = json.loads((runs / "s.tensorrt.json").read_text())
+    assert rec["measurement"]["runtime"]["engine"]["sha256"] == engine_sha(repo)
+    assert rec["measurement"]["precision"] == "fp16" and rec["measurement"]["torch_max_reserved_mib"] is None
+    assert record.validate(rec, "run-record") == []
+    assert record.validate(json.loads((runs / "s.tensorrt.times.json").read_text()), "run-times") == []
+    # The PyTorch row's files are left alone.
+    assert not (runs / "s.json").exists()
