@@ -22,3 +22,25 @@ package = false
 
 [tool.uv.sources]
 mtr-measure = { path = "../../tools/measure", editable = true }
+tensorrt-cu13-libs = { index = "nvidia" }
+tensorrt-cu13-bindings = { index = "nvidia" }
+
+# TensorRT rows (docs/protocol.md, "Runtimes"), installed only for `--runtime tensorrt`. D-FINE's
+# tools/deployment/export_onnx.py checks and simplifies the ONNX file (onnx, onnxsim), torch's default exporter
+# needs onnxscript, and tools/inference/trt_inf.py imports cv2. TensorRT is NVIDIA's proprietary SDK, under the
+# license in its package.
+[dependency-groups]
+tensorrt = [
+  "tensorrt-cu13==10.16.1.11",
+  "tensorrt-cu13-libs==10.16.1.11",
+  "tensorrt-cu13-bindings==10.16.1.11",
+  "onnx",
+  "onnxsim",
+  "onnxscript",
+  "opencv-python-headless",
+]
+
+[[tool.uv.index]]
+name = "nvidia"
+url = "https://pypi.nvidia.com"
+explicit = true

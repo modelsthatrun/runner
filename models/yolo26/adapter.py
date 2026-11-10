@@ -8,7 +8,14 @@ head (nms=False) is what the docs' speed column and "(e2e)" column use. verbose=
 the per-image log line.
 
 Ultralytics sends usage events when its `sync` setting is on. The adapter keeps its settings in the
-model's weights directory and turns sync off, so nothing leaves this machine.
+model's weights directory and turns sync off, so nothing leaves this machine. It also turns Ultralytics'
+auto-install off (YOLO_AUTOINSTALL), so a missing package fails the run instead of changing the environment.
+
+The TensorRT row is the docs' TensorRT integration: `model.export(format="engine")` with quantize=16, then
+`YOLO("yolo26n.engine")` called like the .pt model. The export writes the ONNX file and builds the engine itself with
+TensorRT's Python API (ultralytics/utils/export/engine.py, onnx2engine): the FP16 flag, a static 640x640 input,
+TensorRT's own workspace. nms stays at its default, so the engine holds the one-to-many head and NMS runs outside it,
+as predict() and the docs' mAP column run it. A static engine is letterboxed to the full 640x640.
 """
 
 import math
@@ -22,6 +29,7 @@ from mtr_measure.predictions import Boxes
 
 WEIGHTS = weights_dir("yolo26")
 os.environ.setdefault("YOLO_CONFIG_DIR", str(WEIGHTS / "config"))
+os.environ.setdefault("YOLO_AUTOINSTALL", "False")
 
 from ultralytics.utils import SETTINGS  # noqa: E402
 
@@ -37,6 +45,8 @@ PRECISIONS = ["fp16", "fp32"]
 PACKAGE = "ultralytics"
 IMGSZ = 640
 STRIDE = 32
+TENSORRT = {"precision": "fp16", "builder": {"fp16": True}, "status": "runs-as-is", "input": f"{IMGSZ}x{IMGSZ}"}
+ENGINE_EXPORT = {"format": "engine", "quantize": 16, "imgsz": IMGSZ, "device": 0}
 
 
 def input_size(size, image):
@@ -53,9 +63,28 @@ def load(size, precision):
     return {"model": model, "quantize": 16 if precision == "fp16" else 32}
 
 
+def export_engine(size, out):
+    link = out / f"yolo26{size}.pt"
+    link.symlink_to(weight_files(size)[0])
+    engine = Path(YOLO(str(link)).export(**ENGINE_EXPORT))
+    return {"engine": engine, "onnx": engine.with_suffix(".onnx"), "exporter": f"{PACKAGE} YOLO.export",
+            "args": [f"{k}={v}" for k, v in ENGINE_EXPORT.items()],
+            "builder": {"input": f"1x3x{IMGSZ}x{IMGSZ}, static", "workspace": "TensorRT's default"}}
+
+
+def load_engine(size, engine):
+    # The engine file carries Ultralytics' metadata (names, stride, image size) ahead of TensorRT's plan.
+    return {"model": YOLO(str(engine), task="detect")}
+
+
+def precision_args(m):
+    # An engine's precision was set when it was built, and the docs call it with no precision argument.
+    return {"quantize": m["quantize"]} if "quantize" in m else {}
+
+
 @torch.inference_mode()
 def predict(m, x):
-    return m["model"].predict(x, imgsz=IMGSZ, quantize=m["quantize"], device=0, verbose=False)[0]
+    return m["model"].predict(x, imgsz=IMGSZ, device=0, verbose=False, **precision_args(m))[0]
 
 
 def phase_times(m, out):
@@ -79,8 +108,8 @@ class ValNMSPredictor(DetectionPredictor):
 @torch.inference_mode()
 def eval_predict(m, x):
     # model.val() on COCO: conf 0.001, up to 300 detections, multi-label NMS (DetectionValidator.postprocess).
-    return m["model"].predict(x, imgsz=IMGSZ, quantize=m["quantize"], device=0, conf=0.001, max_det=300, verbose=False,
-                              predictor=ValNMSPredictor)[0]
+    return m["model"].predict(x, imgsz=IMGSZ, device=0, conf=0.001, max_det=300, verbose=False,
+                              predictor=ValNMSPredictor, **precision_args(m))[0]
 
 
 def weight_files(size):

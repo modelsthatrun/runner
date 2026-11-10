@@ -12,6 +12,8 @@ It handles three kinds of model:
 - **Language models** (`KIND = "llm"`). They run as GGUF files through one pinned llama.cpp build.
 - **Text-to-image models** (`KIND = "generation"`). They run a pipeline, such as a diffusers one, through a Python adapter like an image model's, and make one image per call ("Image generation" below).
 
+An image model can also have a TensorRT row: the same checkpoint, run as an engine built from the authors' own ONNX export ("Runtimes" below).
+
 ## The machine
 
 - **What it needs.** Linux and an NVIDIA GPU with its driver. `mtr doctor` checks the machine and shows what a record will say about it.
@@ -131,6 +133,48 @@ Text-to-image models are timed like image models (Latency, VRAM), with these dif
 - **Accuracy.** GenEval (Accuracy, below).
 - **Profiles** make fewer calls (Profiles, below).
 
+## Runtimes
+
+A runtime is how a checkpoint's call executes. Every record names one, or means the default.
+
+- **`pytorch-cuda`, the default.** The official PyTorch code, eager, on the GPU. A record without a `runtime` block is this one.
+- **`tensorrt`.** An engine built from the authors' own ONNX export, with TensorRT 10.16.1.11, run the way their TensorRT inference code runs it. It is another measurement of the same checkpoint: the weights, the license and the outputs stay the checkpoint's.
+- **Other kinds keep their runtime.** Language models already run on llama.cpp, and text-to-image models on their PyTorch pipeline.
+
+**The official path only.** A model has a TensorRT row only where its authors publish the whole path: an export script or export API, and code that runs the result. The adapter calls them with the arguments their README gives (`docs/adapters.md`).
+- Nothing of our own: no export of ours, no edits to the ONNX graph, no plugins, and no builder settings the docs don't name.
+- The export always loads the released checkpoint the row is for, even where a README's example leaves the weights out.
+- Where the official path needs a fix, the row is `runs-with-fixes`, and the adapter and the record say so.
+- Pre- and post-processing are the official TensorRT inference code's. What a call covers is unchanged: `predict()`, timed with the same synchronize, which also waits for the stream TensorRT runs on.
+- **Precision** is what the official TensorRT step asks for: `--fp16`, `half=True` and the like. TensorRT may still keep some layers in fp32. The record states the builder flag, not each layer's type.
+- **Input.** An engine's input is fixed at export, and the record states the input it ran at.
+- **INT8** is left out. It needs calibration images.
+
+**Building the engine.** The TensorRT wheels hold no `trtexec`. Where a README says `trtexec --onnx=… --saveEngine=… --fp16`, the tool builds with TensorRT's Python API and sets it as trtexec sets it (NVIDIA's `samples/common/sampleEngines.cpp`): the flags the command names, trtexec's 8 timing iterations per tactic, and, for an input whose ONNX shape is dynamic, one optimization profile with every dynamic dimension at 1. Everything else stays at TensorRT's defaults. The record lists these settings.
+- Where the official step is one package call that exports and builds, such as Ultralytics' `export(format="engine")`, that call builds the engine, with the package's own settings, and the record says so.
+- `mtr check --runtime tensorrt` exports and builds, in its own process before the check's calls, so the builder's memory never shows up in the check's numbers. It pauses nothing, and refuses to build while another program computes on the GPU or the idle GPU is more than 10% busy, because TensorRT picks kernels by timing them.
+- It keeps the engine, and builds it again only with `--rebuild`, or when the weights, the export, the builder settings, the TensorRT version or the GPU changed.
+- Engines and ONNX files stay in `~/.cache/modelsthatrun/trt/<model>/<size>/`. They are never published or submitted. `mtr clean` removes them.
+- The ONNX file must hold its own weights, so its sha256 covers them.
+
+**What the record says.** A TensorRT record lists the checkpoint's own weight files, as every record does, and adds a `runtime` block: the TensorRT version, the exporter with its arguments, the opset the file declares, the ONNX file's sha256 and size, and the engine's sha256, size, builder settings, build time and date.
+- TensorRT picks kernels by timing them, so a rebuild gives other bytes, on another GPU and even on the same one. The engine's hash ties a run record to its eval on one machine. The ONNX hash, with the export settings, is what another machine can reproduce.
+- VRAM is measured as for every record, at the device level over the idle baseline. `torch_max_reserved_mib` is null, because TensorRT allocates outside PyTorch's allocator.
+- The three runs load the same engine in three fresh processes, so their spread covers loading and running, not the build's choice of kernels.
+
+**Scored before it is timed.** A new runtime is scored on the released weights before any timed run of it. A check can pass on a model whose outputs are all NaN: a score threshold drops NaN scores, and finding nothing on one image is a valid prediction. Only an eval, which scores every candidate on thousands of images, shows it.
+- `mtr eval --runtime tensorrt` scores the engine the check built and names its sha256 in the eval record.
+- `mtr queue add --runtime tensorrt` and `mtr run --runtime tensorrt` refuse a checkpoint until an eval record names the same engine (`NOT_SCORED`). `mtr queue run` checks again before timing, in case the engine was built again after it was queued.
+- `mtr check --runtime tensorrt` also fails when the engine's `predict()` finds nothing on the task's timing input, as for any check. That catches outputs that are empty. The eval catches outputs that are wrong but not empty.
+- An engine's score is its own. It never borrows the PyTorch row's, because the precision differs and an fp16 engine can be wrong.
+
+**The environment.** TensorRT sits in an optional dependency group, `tensorrt`, in the model's own `pyproject.toml`, with the libraries from NVIDIA's index (`https://pypi.nvidia.com`) pinned in `uv.lock` with their hashes. `--runtime tensorrt` adds `--group tensorrt` to `uv run`.
+- Adding the group must leave every other locked package at its version.
+- `uv run` doesn't remove packages a command doesn't ask for, so after a TensorRT command the group stays installed in the model's environment. PyTorch rows never import it.
+- **License.** TensorRT is NVIDIA's proprietary SDK. Installing the group means accepting the NVIDIA Software License Agreement and its TensorRT supplement, in `LICENSE.txt` of the `tensorrt` package. Among other terms it allows use only on systems with NVIDIA GPUs and lets the software collect non-personal information about the system. Read it before you install.
+
+**Community submissions** of TensorRT records aren't open yet. `mtr submit` sends only `runs/<size>.json`.
+
 ## Accuracy
 
 `mtr eval <model> --size <size> --benchmark <benchmark>` scores a checkpoint on a standard public benchmark. It writes `models/<id>/evals/<size>/<benchmark>.json`, an eval record.
@@ -141,6 +185,7 @@ Text-to-image models are timed like image models (Latency, VRAM), with these dif
   - The benchmarks are `coco-val2017-bbox` and `coco-val2017-segm`, scored with pycocotools, the reference implementation.
   - The tool reads predictions through `to_prediction()`. It never applies the display threshold, and it keeps the 100 highest-scoring detections per image.
   - If the official evaluation calls the model differently from its README, the adapter's `eval_predict()` does it that way. Class names map to COCO by name, with the adapter's `EVAL["label_map"]` for other names.
+  - With `--runtime tensorrt` it scores the engine `check` built, at the engine's precision, and writes `evals/<size>/<benchmark>.tensorrt.json` (Runtimes, above).
 - **Language models.**
   - lm-evaluation-harness 0.4.13 (`tools/measure/lmeval/`) runs against the same llama.cpp build, through its chat endpoint, with the model's own chat template.
   - The suite is IFEval and GSM8K (`gsm8k_cot_llama`, 8 worked examples as a chat), with thinking off. It takes about 11 minutes per 8B checkpoint.
@@ -225,5 +270,6 @@ Matting and depth outputs have no scores, so they have no threshold.
    - `--dry-run` measures without writing.
    - `--force` runs past failed checks without pausing anything, and never writes a record.
 5. **Batching.** `mtr queue add` collects timed runs, and `mtr queue run` measures them in one pause.
-6. **The result line.** Every command ends with one `mtr-result: {json}` line: status, code, message, hint, outputs and warnings (`errors.py`). The exit code is fixed per code.
-7. **Freeing disk.** `mtr clean <model> --yes` frees what a model used.
+6. **A TensorRT row** goes `mtr check --runtime tensorrt`, then `mtr eval --runtime tensorrt`, then `mtr queue add --runtime tensorrt`. Its files carry the runtime: `.check/<size>.tensorrt.json`, `evals/<size>/<benchmark>.tensorrt.json`, `runs/<size>.tensorrt.json` and `<size>.tensorrt.times.json`.
+7. **The result line.** Every command ends with one `mtr-result: {json}` line: status, code, message, hint, outputs and warnings (`errors.py`). The exit code is fixed per code.
+8. **Freeing disk.** `mtr clean <model> --yes` frees what a model used, TensorRT engines included.

@@ -4,6 +4,7 @@ The `mtr` command (main.py) runs these in the model's own uv environment:
 
     mtr check <model> --size <size> [--input <file>]     does the adapter work? Pauses nothing, writes no record
     mtr run <model> --size <size> [--input <file>]       one timed measurement: models/<id>/runs/<size>.json
+    … --runtime tensorrt                                 check, eval, queue and run a TensorRT row (trt.py)
     mtr eval <model> --size <size> --benchmark <name>    accuracy on a standard benchmark. Pauses nothing
     mtr profile <model> --size <size> [--input <file>]   GPU time by kernel, for estimates on other GPUs. Pauses nothing
     mtr queue add | list | run | drop                    batch timed runs into one pause (runqueue.py)
@@ -34,7 +35,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import adapter as ad
-from . import checks, cpu, desktop, machine, paths, protocol, record, timing
+from . import checks, cpu, desktop, machine, paths, protocol, record, timing, trt
 from .errors import MeasureError, emit
 from .gpu import MIB, Gpu, Poller, sample_for
 
@@ -70,6 +71,16 @@ def model_args(p: argparse.ArgumentParser, input_required: bool) -> None:
     p.add_argument("--model-id", help="Model id for the record (default: the directory name)")
     p.add_argument("--poll-ms", type=float, default=5.0, help="NVML polling interval, 10 ms or less (default 5)")
     p.add_argument("--gpu", type=int, default=0, help="NVML device index (default 0)")
+
+
+def runtime_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--runtime", default=trt.DEFAULT, choices=trt.RUNTIMES,
+                   help="How the call runs: the official PyTorch code (default), or a TensorRT engine from the authors' ONNX export")
+
+
+def image_only(kind: str, runtime: str) -> None:
+    if runtime != trt.DEFAULT and kind != "image":
+        raise MeasureError("USAGE", f"--runtime {runtime} is for image models only; a {kind} model keeps its own runtime")
 
 
 def check_poll(args: argparse.Namespace) -> None:
@@ -150,29 +161,51 @@ def finish(log: Log, log_path: Path, code: str, message: str, outputs: dict | No
 # --- check ---------------------------------------------------------------------------------------
 
 
-def write_check(model_dir: Path, size: str, check: dict) -> Path:
-    path = record.check_path(model_dir, size)
+def write_check(model_dir: Path, size: str, check: dict, runtime: str = trt.DEFAULT) -> Path:
+    path = record.check_path(model_dir, size, runtime)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"ok": True, "size": size, "protocol": protocol.PROTOCOL_VERSION, **record.fingerprint(model_dir),
                                 **check, "checked": datetime.now().astimezone().isoformat(timespec="seconds")}, indent=2) + "\n")
     return path
 
 
+def prepare_engine(model_dir: Path, model_id: str, args: argparse.Namespace, gpu: Gpu, log: Log) -> dict:
+    """The TensorRT engine for `check`: kept, or exported and built in its own process (trt.py). TensorRT times its
+    kernel candidates while it builds, so it refuses a GPU that something else keeps busy, as `mtr profile` does."""
+    idle = sample_for(gpu, BASELINE_SECONDS, args.poll_ms)
+    util = sum(idle.utilization) / max(len(idle.utilization), 1)
+    me = os.getpid()
+    others = [p for p in gpu.processes() if "C" in p.kind and p.pid != me and not checks._blocking(p.name)]
+    if others:
+        raise MeasureError("GPU_BUSY", f"Another compute process holds the GPU: {others[0].name} (pid {others[0].pid}). "
+                                       "TensorRT picks kernels by timing them, so build the engine when it is gone")
+    if util > checks.IDLE_UTIL_LIMIT:
+        raise MeasureError("GPU_BUSY", f"The idle GPU is {util:.0f}% busy. TensorRT picks kernels by timing them, so build the engine when it is idle")
+    log(f"gpu before the build: idle utilization {util:.0f}%")
+    return trt.run_prepare({"adapter": str(model_dir / "adapter.py"), "size": args.size, "model": model_id, "gpu": gpu.name(),
+                            "rebuild": bool(args.rebuild)}, args.gpu, log)
+
+
 def cmd_check(argv: list[str], log: Log) -> int:
     p = Parser(prog="mtr check", description="Load the checkpoint, make a few calls and check the adapter. Pauses nothing and writes no record.")
     model_args(p, input_required=False)
     p.add_argument("--task", help="Task id, to check to_prediction() (default: the adapter's TASK)")
+    runtime_args(p)
+    p.add_argument("--rebuild", action="store_true", help="--runtime tensorrt: build the engine again even if the kept one matches. Its eval then has to be redone")
     args = p.parse_args(argv)
     check_poll(args)
     model_dir = check_paths(args)
     model_id = args.model_id or model_dir.name
     kind = ad.kind_of_file(model_dir / "adapter.py")
+    image_only(kind, args.runtime)
     llm = kind == "llm"
     gen = kind == "generation"
-    log_path = record.check_path(model_dir, args.size).with_suffix(".log")
+    log_path = record.check_path(model_dir, args.size, args.runtime).with_suffix(".log")
     warnings: list[str] = []
+    info: dict | None = None
 
-    log(f"mtr check {model_id} / {args.size} (not a measurement: nothing is paused, no record is written)")
+    on = f" on {args.runtime}" if args.runtime != trt.DEFAULT else ""
+    log(f"mtr check {model_id} / {args.size}{on} (not a measurement: nothing is paused, no record is written)")
     log(f"command: {shlex.join(sys.argv)}", echo=False)
     try:
         if llm:
@@ -194,6 +227,9 @@ def cmd_check(argv: list[str], log: Log) -> int:
             what = f"{warmup} warm-up and {timed} timed predict() calls"
         gpu = Gpu(args.gpu)
         try:
+            if args.runtime == "tensorrt":
+                info = prepare_engine(model_dir, model_id, args, gpu, log)
+                spec.update(runtime="tensorrt", engine=info["engine"]["path"])
             window = cpu.Window().start()
             before = sample_for(gpu, BASELINE_SECONDS, args.poll_ms)
             free_mib = (gpu.total_bytes() - before.median_bytes) / MIB
@@ -241,9 +277,18 @@ def cmd_check(argv: list[str], log: Log) -> int:
                  "weight_files": sorted(set(worker["weights"]) | set(worker.get("weight_links", [])))}
         summary = f"about {approx_ms} ms and {approx_vram} MiB"
         numbers = {"approx_ms": approx_ms, "approx_vram_mib": approx_vram}
-    path = write_check(model_dir, args.size, check)
+        if info:
+            rt = info["runtime"]
+            check.update(runtime="tensorrt", engine=info["engine"]["path"], runtime_info=rt)
+            log(f"engine: TensorRT {rt['version']}, sha256 {rt['engine']['sha256']}, {rt['engine']['bytes'] / MIB:.1f} MiB, "
+                f"{'kept' if info.get('reused') else 'built'} {rt['engine']['built']}")
+            numbers["engine_sha256"] = rt["engine"]["sha256"]
+    path = write_check(model_dir, args.size, check, args.runtime)
     log(f"wrote {path}")
-    log("next: `mtr run` (or `mtr queue add`) for the timed run, and `mtr eval` for accuracy")
+    if args.runtime == "tensorrt":
+        log("next: `mtr eval --runtime tensorrt` on this engine. The queue refuses a TensorRT row until it is scored")
+    else:
+        log("next: `mtr run` (or `mtr queue add`) for the timed run, and `mtr eval` for accuracy")
     return finish(log, log_path, "OK", f"{model_id} / {args.size} works: load {worker['load_s']:.1f} s, {summary}",
                   {"check": str(path), "load_s": check["load_s"], **numbers}, warnings)
 
@@ -258,19 +303,24 @@ def cmd_run(argv: list[str], log: Log) -> int:
     p.add_argument("--dry-run", action="store_true", help="Measure and print the record, but don't write it")
     p.add_argument("--force", action="store_true", help="Run even if a check fails, without pausing anything. Implies --dry-run. `check` is usually what you want")
     p.add_argument("--keep-desktop", action="store_true", help="Don't run the pause hooks (the checks then refuse to run while their programs are open)")
+    runtime_args(p)
     args = p.parse_args(argv)
     check_poll(args)
     model_dir = check_paths(args)
     model_id = args.model_id or model_dir.name
-    out = (args.out or model_dir / "runs" / f"{args.size}.json").resolve()
+    sfx = trt.suffix(args.runtime)
+    out = (args.out or model_dir / "runs" / f"{args.size}{sfx}.json").resolve()
     dry = args.dry_run or args.force
     warnings: list[str] = []
     kind = ad.kind_of_file(model_dir / "adapter.py")
+    image_only(kind, args.runtime)
     llm = kind == "llm"
     gen = kind == "generation"
-    failed_log = out.with_name(f"{args.size}.failed.log")
+    failed_log = out.with_name(f"{args.size}{sfx}.failed.log")
+    runtime_block: dict | None = None
 
-    log(f"mtr run {model_id} / {args.size}, protocol {protocol.PROTOCOL_VERSION}")
+    on = f" on {args.runtime}" if args.runtime != trt.DEFAULT else ""
+    log(f"mtr run {model_id} / {args.size}{on}, protocol {protocol.PROTOCOL_VERSION}")
     log(f"command: {shlex.join(sys.argv)}", echo=False)
     try:
         if llm:
@@ -291,6 +341,22 @@ def cmd_run(argv: list[str], log: Log) -> int:
                     "warmup": warmup, "timed": timed}
             module, summarize, spread_key = "mtr_measure.worker", record.summarize_run, "median"
             what = f"{warmup} warm-up and {timed} timed predict() calls"
+            if args.runtime == "tensorrt":
+                # Never builds: that would happen inside the pause. The engine is the checked one, and it was scored first.
+                from .runqueue import read_check
+
+                check = read_check(model_dir, args.size, args.runtime)
+                engine = trt.verify_engine(check)
+                if dry:
+                    try:
+                        trt.require_eval(model_dir, args.size, check)
+                    except MeasureError as e:
+                        warnings.append(f"{e} (a dry run writes no record, so it goes on)")
+                else:
+                    log(f"eval of this engine: {trt.require_eval(model_dir, args.size, check)}")
+                spec.update(runtime="tensorrt", engine=str(engine))
+                runtime_block = trt.runtime_block(check)
+                log(f"engine: TensorRT {runtime_block['version']}, sha256 {runtime_block['engine']['sha256']}")
     except MeasureError as e:
         log(f"FAILED: {e}")
         return finish(log, failed_log, e.code, str(e))
@@ -377,7 +443,7 @@ def cmd_run(argv: list[str], log: Log) -> int:
         rec = record.build(
             model=model_id, size=args.size, weights=weights, runs=runs, gpu_name=gpu_name, driver=driver,
             image_digest=os.environ.get("MTR_IMAGE_DIGEST") or None, warmup=spec["warmup"], measured=measured,
-            machine=facts, provenance=machine.provenance(model_dir, inputs), kind=kind,
+            machine=facts, provenance=machine.provenance(model_dir, inputs), kind=kind, runtime=runtime_block,
         )
         m = rec["measurement"]
         spread = record.spread(m["runs"], spread_key)
@@ -413,7 +479,7 @@ def cmd_run(argv: list[str], log: Log) -> int:
         log(f"No run record written ({why}). The record would have been:")
         log(json.dumps(rec, indent=2))
         if code == "OK":
-            return finish(log, out.with_name(f"{args.size}.dry-run.log"), "OK", f"Dry run of {model_id} / {args.size}: no record written", numbers, warnings)
+            return finish(log, out.with_name(f"{args.size}{sfx}.dry-run.log"), "OK", f"Dry run of {model_id} / {args.size}: no record written", numbers, warnings)
         return finish(log, failed_log, code, message, numbers, warnings)
 
     times = record.times(runs, kind)
@@ -424,7 +490,7 @@ def cmd_run(argv: list[str], log: Log) -> int:
         warnings.append("tools/measure or the model directory has uncommitted changes, so this record can't be submitted")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(rec, indent=2) + "\n")
-    times_path = out.with_name(f"{args.size}.times.json")
+    times_path = out.with_name(f"{args.size}{sfx}.times.json")
     times_path.write_text(json.dumps(times) + "\n")
     log(f"wrote {out} and {times_path.name}")
     # Not .json, so it is never read as a record. It stays next to the record as evidence of the run.

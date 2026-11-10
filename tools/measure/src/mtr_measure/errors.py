@@ -32,6 +32,8 @@ CODES: dict[str, tuple[int, str]] = {
     "OOM": (13, "It didn't fit in the free GPU memory at the protocol's settings. Never lower them. Other programs may hold GPU "
                 "memory: close them, or ask whoever uses the machine. If it still doesn't fit, the checkpoint doesn't run on this GPU."),
     "NOT_CHECKED": (14, "Run `mtr check` for this checkpoint first. It must pass with the current adapter.py and uv.lock."),
+    "NOT_SCORED": (16, "A new runtime is scored before it is timed. Run `mtr eval` with the same --runtime on this engine first; "
+                       "an engine built again needs its own eval."),
     "LOCK_STALE": (15, "pyproject.toml and uv.lock disagree. If you changed pyproject.toml on purpose, run `uv lock --project <model dir>` "
                        "and commit uv.lock with it; otherwise restore pyproject.toml with git."),
     "GPU_BUSY": (20, "Another program uses the GPU. Close it, or ask whoever uses the machine. Never close other programs yourself."),
@@ -47,7 +49,8 @@ CODES: dict[str, tuple[int, str]] = {
     "SCHEMA": (30, "The record fails its schema. If the adapter is fine, this is a tool bug: report it, and never edit the record."),
     "QUEUE": (31, "See `mtr queue list`."),
     "DATASET": (40, "The benchmark data is missing or damaged. Run the command again to download it, or check the disk space."),
-    "ENGINE": (41, "The inference engine (llama.cpp) failed to build or start. Read the log; never switch to another build."),
+    "ENGINE": (41, "The inference engine (llama.cpp, or a TensorRT engine) failed to build or start. Read the log; never switch "
+                   "to another build or change its settings."),
     "EVAL": (42, "The accuracy evaluation failed. Read the log. Never change the benchmark settings to make it pass."),
     "AUTH": (50, "The person whose GitHub account submits signs in with `mtr login` (it needs their browser), then try again."),
     "NETWORK": (51, "The inbox couldn't be reached. Check the connection, or MTR_INBOX if you set it, and try again."),

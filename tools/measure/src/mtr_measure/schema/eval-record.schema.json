@@ -144,6 +144,30 @@
       "pattern": "^[a-f0-9]{64}$",
       "description": "sha256 of the raw predictions file, kept locally as evidence"
     },
+    "runtime": {
+      "description": "Absent for the official PyTorch code. A TensorRT eval names its engine, which must be the one its run record timed",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "const": "tensorrt"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "engine_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "engine_sha256"
+      ],
+      "additionalProperties": false
+    },
     "provenance": {
       "type": "object",
       "properties": {

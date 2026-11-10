@@ -255,10 +255,14 @@ def prepare_input(a: Any, paths: list[Path]) -> Any:
         return im.convert("RGB")
 
 
-def input_size(a: Any, size: str, x: Any) -> str:
+def input_size(a: Any, size: str, x: Any, runtime: str | None = None) -> str:
     if kind(a) == "generation":
         return x.resolution
-    value = a.input_size(size, x) if hasattr(a, "input_size") else a.INPUT.get(size)
+    # An engine's input is fixed when it is exported, and may differ from the PyTorch row's (TENSORRT["input"]).
+    fixed = (getattr(a, "TENSORRT", None) or {}).get("input") if runtime == "tensorrt" else None
+    if isinstance(fixed, dict):
+        fixed = fixed.get(size)
+    value = fixed or (a.input_size(size, x) if hasattr(a, "input_size") else a.INPUT.get(size))
     if not isinstance(value, str) or not re.fullmatch(r"\d+x\d+", value):
         raise AdapterError(f'The input resolution for "{size}" must be "WxH", got {value!r}')
     return value

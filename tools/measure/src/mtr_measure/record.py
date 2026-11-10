@@ -160,10 +160,12 @@ def build(
     machine: dict | None = None,
     provenance: dict | None = None,
     kind: str = "image",
+    runtime: dict | None = None,
 ) -> dict:
     """`runs` holds one {"worker", "baseline_bytes", "peak_bytes"} per independent run. `machine` adds the
     machine facts to env (machine.facts), and `provenance` says where the record came from. A text-to-image
-    record (kind "generation", schema/gen-run-record.schema.json) also says how each image was made."""
+    record (kind "generation", schema/gen-run-record.schema.json) also says how each image was made. `runtime`
+    is a TensorRT row's engine (trt.runtime_block); a record without it is the official PyTorch code."""
     if not runs:
         raise ValueError("no runs")
     summaries = [summarize_run(r["worker"], r["baseline_bytes"], r["peak_bytes"]) for r in runs]
@@ -186,7 +188,8 @@ def build(
             },
             "latency_scope": first["latency_scope"],
             "vram_peak_mib": max(s["vram_peak_mib"] for s in summaries),
-            "torch_max_reserved_mib": round(max(r["worker"]["torch_max_reserved_bytes"] for r in runs) / MIB),
+            # TensorRT allocates its own memory outside PyTorch's allocator, so PyTorch's number would say too little.
+            "torch_max_reserved_mib": None if runtime else round(max(r["worker"]["torch_max_reserved_bytes"] for r in runs) / MIB),
             "iterations": {"warmup": warmup, "timed": len(first["times_ms"])},
             "env": {
                 "gpu": gpu_name,
@@ -203,6 +206,7 @@ def build(
             "protocol": PROTOCOL_VERSION,
             "runs": summaries,
             **gen,
+            **({"runtime": runtime} if runtime else {}),
         },
         **({"provenance": provenance} if provenance else {}),
     }
@@ -241,8 +245,11 @@ def fingerprint(model_dir: Path) -> dict:
     }
 
 
-def check_path(model_dir: Path, size: str) -> Path:
-    return model_dir / ".check" / f"{size}.json"
+def check_path(model_dir: Path, size: str, runtime: str = "pytorch-cuda") -> Path:
+    """A passed check: .check/<size>.json, or .check/<size>.tensorrt.json for a TensorRT row."""
+    from .trt import suffix
+
+    return model_dir / ".check" / f"{size}{suffix(runtime)}.json"
 
 
 # ModelsThatRun's record schemas, generated from the schema package its maintainers keep; never edited here.
