@@ -22,6 +22,12 @@ GenEval reports it. The images and GenEval's per-image results (geneval.results.
 evidence and are never published or pushed. Nothing is timed, so nothing is paused; free GPU memory is checked
 before each step. `--limit N` makes and scores only the first N prompts, in geneval.limit/, and writes no record.
 
+`--pause` is for a model that only fits on the GPU with the machine's pause hooks (machine.toml, desktop.py)
+stopped, as for a timed run. The hooks then hold while the images are made, which takes hours, and the free-memory
+check before them leaves EVAL_VRAM_MARGIN_PAUSED_MIB instead of EVAL_VRAM_MARGIN_MIB. Scoring runs after they
+start again. The pause stops programs such as a streaming host, so use it only when whoever uses the machine
+agrees. The margins decide only whether the run starts, never a score.
+
 GenEval's files, the detector's checkpoint and CLIP's weights download once, each checked by its sha256.
 """
 
@@ -38,13 +44,14 @@ import subprocess
 import sys
 import time
 from collections import defaultdict
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from . import adapter as ad
-from . import datasets, generation, machine, paths, protocol, record
+from . import datasets, desktop, generation, machine, paths, protocol, record
 from .cli import Log, Parser, finish
 from .errors import MeasureError
 from .gpu import MIB, Gpu
@@ -95,13 +102,16 @@ SEEDING = ("one generator per image, seeded 42, 43, 44 and 45 for the four image
 
 def parse_args(argv: list[str]):
     p = Parser(prog="mtr eval", description="Score one text-to-image checkpoint on GenEval: make 553 x 4 images, "
-                                            "then score them with GenEval's own evaluator. Pauses nothing.")
+                                            "then score them with GenEval's own evaluator. Pauses nothing unless --pause.")
     p.add_argument("model_dir", type=Path)
     p.add_argument("--size", required=True)
     p.add_argument("--benchmark", required=True, choices=sorted(protocol.GEN_BENCHMARKS))
     p.add_argument("--limit", type=int, help="Only the first N prompts, to try it. Writes no record")
     p.add_argument("--model-id")
     p.add_argument("--gpu", type=int, default=0, help="NVML device index (default 0)")
+    p.add_argument("--pause", action="store_true",
+                   help="Stop the machine's pause hooks (machine.toml) while images are made, for a model that only fits "
+                        "with them stopped. Takes hours: use it only when whoever uses the machine agrees")
     return p.parse_args(argv)
 
 
@@ -280,8 +290,14 @@ def save_png(img: Any, dest: Path) -> None:
     tmp.replace(dest)
 
 
+def vram_needed(check: dict, pause: bool) -> int:
+    """Free MiB the image step needs before it starts: what `check` saw the model use, and a margin."""
+    margin = protocol.EVAL_VRAM_MARGIN_PAUSED_MIB if pause else protocol.EVAL_VRAM_MARGIN_MIB
+    return (check.get("approx_vram_mib") or 0) + margin
+
+
 def make_images(a: Any, model_dir: Path, size: str, precision: str, rows: list[dict], seeds: list[int], images: Path,
-                state: dict, gpu: int, log: Log) -> None:
+                state: dict, gpu: int, log: Log, pause: bool = False) -> None:
     todo = missing(images, len(rows), len(seeds))
     if not todo:
         log(f"all {len(rows) * len(seeds)} images are made already")
@@ -289,12 +305,19 @@ def make_images(a: Any, model_dir: Path, size: str, precision: str, rows: list[d
     for stale in images.glob("*/samples/.*.tmp"):
         stale.unlink()
     check = read_check(model_dir, size)
-    free, used = free_vram_mib(gpu)
-    need = (check.get("approx_vram_mib") or 0) + protocol.EVAL_VRAM_MARGIN_MIB
-    log(f"gpu memory: {free:.0f} MiB free ({used:.0f} MiB in use by other programs); the model needs about {need} MiB")
-    if free < need:
-        raise MeasureError("VRAM_LOW", f"Only {free:.0f} MiB of GPU memory is free and the model needs about {need} MiB")
+    # The hooks hold for the whole image step and start again on the way out, whatever happens (desktop.paused).
+    with desktop.paused(log) if pause else nullcontext():
+        free, used = free_vram_mib(gpu)
+        need = vram_needed(check, pause)
+        log(f"gpu memory: {free:.0f} MiB free ({used:.0f} MiB in use by other programs); the model needs about {need} MiB"
+            + (" with the pause hooks stopped" if pause else ""))
+        if free < need:
+            raise MeasureError("VRAM_LOW", f"Only {free:.0f} MiB of GPU memory is free and the model needs about {need} MiB")
+        _make(a, size, precision, rows, seeds, images, state, todo, log, pause)
 
+
+def _make(a: Any, size: str, precision: str, rows: list[dict], seeds: list[int], images: Path, state: dict,
+          todo: list, log: Log, pause: bool) -> None:
     cuda_ready(precision)
     log(f"making {len(todo)} of {len(rows) * len(seeds)} images ({len(rows) * len(seeds) - len(todo)} made already)")
     model = a.load(size, precision)
@@ -325,6 +348,8 @@ def make_images(a: Any, model_dir: Path, size: str, precision: str, rows: list[d
                 done += 1
                 now = time.perf_counter()
                 if now - last >= 60 or done == len(todo):
+                    if pause:
+                        desktop.extend_fallback()  # so Sunshine's fallback timer doesn't start it in the middle
                     state["generation_s"] = round(state.get("generation_s", 0) + now - last, 1)
                     write_state(images, state)
                     last = now
@@ -521,7 +546,7 @@ def evaluate(args, model_dir: Path, model_id: str, out: Path, log_path: Path, lo
     g = generation.settings(a, args.size)
     log(f"package: {ad.package(a)}, precision {precision}, {g['resolution']}, {g['steps']} steps, guidance {g['guidance']:g}, "
         f"seeds {', '.join(map(str, seeds))} on {g['generator']}; {len(rows)} prompts x {len(seeds)} images")
-    make_images(a, model_dir, args.size, precision, rows, seeds, images, state, args.gpu, log)
+    make_images(a, model_dir, args.size, precision, rows, seeds, images, state, args.gpu, log, args.pause)
     check_layout(images, rows, len(seeds))
 
     results = out.with_name(f"{args.benchmark}{'.limit' if args.limit else ''}.results.jsonl")

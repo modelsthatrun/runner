@@ -25,6 +25,10 @@ CHECK_TIMED = 5
 # Accuracy evals pause nothing, so they need this much free VRAM on top of
 # what `check` saw the model use.
 EVAL_VRAM_MARGIN_MIB = 1024
+# A GenEval run with --pause stops the machine's pause hooks (machine.toml) while it makes images, so the
+# programs the margin above leaves room for aren't running. It still leaves this much for the desktop itself.
+# Neither margin changes a score: it only decides whether the run starts.
+EVAL_VRAM_MARGIN_PAUSED_MIB = 512
 
 # Text-to-image models (kind "generation"): one call makes one image from the task's timing prompt, at the
 # official resolution, steps and guidance, with a fixed seed. A call takes seconds, so each run makes fewer calls

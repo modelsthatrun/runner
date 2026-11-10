@@ -23,7 +23,7 @@ Instructions for AI coding agents working in this repository: Claude Code, Codex
    - Never run `mtr login` yourself, even when a result's hint says to. It needs the user's browser and signs in as them. On `AUTH`, ask the user to run `./mtr login`.
 4. **Ask before a timed run on a machine someone is using.**
    - `mtr run`, `mtr bench` and `mtr queue run` hold the GPU and need a quiet CPU for a few minutes each. Pause hooks in `machine.toml` may stop the user's streaming or game launcher for that time.
-   - `mtr check`, `mtr eval` and `mtr profile` pause nothing.
+   - `mtr check`, `mtr eval` and `mtr profile` pause nothing, except `mtr eval --benchmark geneval --pause`. It holds the pause hooks for hours, so it needs the user's go-ahead like a timed run.
 5. **Never close the user's programs.** That covers games, videos, browsers and training jobs. If the GPU or the CPU is busy (`GPU_BUSY`, `CPU_BUSY`, `VRAM_LOW`), say which program it is and let the user decide.
 6. **Never lower settings to make a model fit.** `OOM` at the protocol's settings is a result: the checkpoint doesn't run on this GPU.
 7. **Licenses come from primary sources only.** Take them from the repository's LICENSE file and from the model card of that exact checkpoint, with the URL and the date you read them. Never use blogs, vendor posts or memory.
@@ -90,7 +90,7 @@ Follow [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/adapters.md](docs/adapters.m
 1. **Start the directory.** `./mtr new <id> --kind generation`.
 2. **Write the adapter from the official model card:** its pipeline, dtype, resolution, steps, guidance and generator device in `GENERATION`. Leave out any CPU offload: everything stays on the GPU, and `OOM` is a result.
 3. **Check it.** `./mtr check <id> --size <size>`.
-4. **Score it, optionally.** `./mtr eval <id> --size <size> --benchmark geneval` makes 2,212 images and scores them with GenEval's own evaluator. It takes about an hour for a four-step model and five for a 50-step one on an RTX 4090, so run it in the background. Its first run installs GenEval's environment and downloads about 1.2 GB of detector and CLIP weights.
+4. **Score it, optionally.** `./mtr eval <id> --size <size> --benchmark geneval` makes 2,212 images and scores them with GenEval's own evaluator. It takes about an hour for a four-step model and five for a 50-step one on an RTX 4090, so run it in the background. Its first run installs GenEval's environment and downloads about 1.2 GB of detector and CLIP weights. A model that only fits with the pause hooks stopped stops at `VRAM_LOW`: add `--pause` only after the user agrees (rule 4).
 
 **Then, for any kind:**
 - **Propose the pull request to the user.** Include the adapter, plus `pyproject.toml`, `uv.lock` and `.python-version` for an image or text-to-image model. Never include records, weights or outputs; git ignores them. Push and open it only with the user's go-ahead.

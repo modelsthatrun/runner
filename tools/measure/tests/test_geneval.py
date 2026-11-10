@@ -141,6 +141,42 @@ def test_a_stopped_run_resumes_and_other_settings_are_refused(tmp_path, offline,
     assert "made with other settings" in log.text() and "steps" in log.text()
 
 
+def test_pause_holds_the_hooks_while_images_are_made_and_only_then_uses_the_smaller_margin(tmp_path, offline, monkeypatch):
+    from contextlib import contextmanager
+
+    from mtr_measure import desktop
+
+    events = []
+
+    @contextmanager
+    def fake_paused(say=print):
+        events.append("pause")
+        try:
+            yield
+        finally:
+            events.append("resume")
+
+    monkeypatch.setattr(desktop, "paused", fake_paused)
+    monkeypatch.setattr(desktop, "extend_fallback", lambda: events.append("extend"))
+    real_save, real_score = geneval.save_png, geneval.score
+    monkeypatch.setattr(geneval, "save_png", lambda img, dest: (events.append("image"), real_save(img, dest)))
+    monkeypatch.setattr(geneval, "score", lambda *a: (events.append("score"), real_score(*a)))
+    # check saw the model use 100 MiB. This much free memory is enough only with the smaller margin.
+    monkeypatch.setattr(geneval, "free_vram_mib", lambda index: (100 + protocol.EVAL_VRAM_MARGIN_PAUSED_MIB + 1.0, 0.0))
+    d = model(tmp_path)
+    log = Log()
+    assert geneval.main([str(d), "--size", "s", "--benchmark", "geneval", "--limit", "1"], log) != 0
+    assert "VRAM_LOW" in log.text() and events == [], "without --pause the full margin applies and nothing is paused"
+
+    log = Log()
+    assert geneval.main([str(d), "--size", "s", "--benchmark", "geneval", "--limit", "1", "--pause"], log) == 0
+    assert events[0] == "pause" and events.count("image") == 4 and "extend" in events
+    assert events.index("resume") > max(i for i, e in enumerate(events) if e == "image"), "every image is made while paused"
+    assert events[-1] == "score" and events.index("score") > events.index("resume"), "scoring runs after the hooks start again"
+    assert "with the pause hooks stopped" in log.text()
+    assert protocol.EVAL_VRAM_MARGIN_PAUSED_MIB < protocol.EVAL_VRAM_MARGIN_MIB
+
+
 def test_the_tool_and_summary_scores_must_agree(tmp_path, offline):
     offline.summary["off_by"] = 0.01
     log = Log()
