@@ -29,7 +29,8 @@ Optional:
     preprocess(model, x)          predict() in its three phases, for the phase split in `mtr profile`:
     forward(model, inp)           what the CPU does before the network, the network, and what comes after.
     postprocess(model, raw, x)    predict(model, x) must return postprocess(model, forward(model,
-                                  preprocess(model, x)), x). Define all three or none
+                                  preprocess(model, x)), x). The split needs all three: with fewer
+                                  there is none, and the functions are the adapter's own helpers
     phase_times(model, out)       instead of those three, when the official package times its own phases:
                                   {"preprocess": ms, "forward": ms, "postprocess": ms} for the call that
                                   returned `out`, each phase closed by a synchronize
@@ -201,18 +202,21 @@ def check_interface(a: Any) -> None:
     unknown = [p for p in a.PRECISIONS if p not in KNOWN_PRECISIONS]
     if unknown or not a.PRECISIONS:
         raise AdapterError(f"PRECISIONS must list some of {KNOWN_PRECISIONS}, got {a.PRECISIONS}")
-    hooks = [n for n in PHASE_HOOKS if callable(getattr(a, n, None))]
-    if hooks and len(hooks) != len(PHASE_HOOKS):
-        raise AdapterError(f"Define all of {', '.join(f'{n}()' for n in PHASE_HOOKS)} or none; the adapter has only {', '.join(hooks)}")
-    if hooks and hasattr(a, "phase_times"):
+    # Fewer than the three hooks is no split, not a mistake: forward() is a common name for an adapter's own helper.
+    if len(phase_hooks(a)) == len(PHASE_HOOKS) and hasattr(a, "phase_times"):
         raise AdapterError("Define either preprocess(), forward() and postprocess(), or phase_times(), not both")
+
+
+def phase_hooks(a: Any) -> list[str]:
+    """Which of the three phase hooks the adapter defines."""
+    return [n for n in PHASE_HOOKS if callable(getattr(a, n, None))]
 
 
 def phase_source(a: Any) -> str | None:
     """Who splits a call into phases for `mtr profile`: "adapter" (its three hooks), "package" (phase_times()), or None."""
     if kind(a) != "image":
         return None
-    if all(callable(getattr(a, n, None)) for n in PHASE_HOOKS):
+    if len(phase_hooks(a)) == len(PHASE_HOOKS):
         return "adapter"
     if callable(getattr(a, "phase_times", None)):
         return "package"

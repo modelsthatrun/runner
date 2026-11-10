@@ -94,8 +94,10 @@ def test_phase_hooks_come_all_together_or_from_the_package():
     split = fake_adapter(preprocess=lambda m, x: x, forward=lambda m, i: i, postprocess=lambda m, r, x: r)
     ad.check_interface(split)
     assert ad.phase_source(split) == "adapter"
-    with pytest.raises(ad.AdapterError, match="all of"):
-        ad.check_interface(fake_adapter(preprocess=lambda m, x: x, forward=lambda m, i: i))
+    # Fewer than three is no split: forward() alone is an adapter's own helper, as in several models here.
+    helper = fake_adapter(forward=lambda m, x: x)
+    ad.check_interface(helper)
+    assert ad.phase_source(helper) is None and ad.phase_hooks(helper) == ["forward"]
     timed = fake_adapter(phase_times=lambda m, out: {"preprocess": 1.0, "forward": 2, "postprocess": 0.5})
     ad.check_interface(timed)
     assert ad.phase_source(timed) == "package"

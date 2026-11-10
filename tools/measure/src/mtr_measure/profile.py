@@ -195,6 +195,8 @@ def run(spec: dict) -> dict:
         "warmup": warmup,
         "plain_ms": plain,
         "phases": phases,
+        # Hooks that make no split on their own, for the log: an adapter's helper may share a hook's name.
+        "phase_hooks": [] if phases or hasattr(a, "phase_times") else ad.phase_hooks(a),
         **agg,
         "weights": [str(Path(p).resolve()) for p in a.weight_files(size)],
         "env": {
@@ -377,6 +379,9 @@ def cmd_profile(argv: list[str], log: Any) -> int:
     log(f"flags after load: {pr['env']['flags']}")
     log(f"plain calls: median {wall} ms; under the profiler {pr['profiled_wall_ms']} ms")
     log(f"gpu busy: {pr['gpu_busy_ms']} ms per call ({pr['gpu_busy_ms'] / wall:.0%} of a plain call), {len(pr['kernels'])} kernels and copies")
+    if worker.get("phase_hooks"):
+        log(f"no phase split: the adapter has {', '.join(f'{n}()' for n in worker['phase_hooks'])}, and a split needs "
+            "preprocess(), forward() and postprocess()")
     if "phases" in pr:
         ph = pr["phases"]
         log(f"phases ({ph['source']}, {ph['calls']} calls, a synchronize after each): pre-processing {ph['preprocess_ms']} ms, "
