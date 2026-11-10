@@ -1,0 +1,90 @@
+# GenEval's evaluator in its own uv environment, for `mtr eval` on text-to-image models.
+# GenEval (https://github.com/djghosh13/geneval, MIT) scores images with Mask2Former through mmdetection 2.x
+# and colors with CLIP; its environment.yml pins Python 3.9, torch 1.12.1 with CUDA 11.3 and mmcv-full 1.7.1.
+# The versions below are that file's, so the scores are its scores. The tool runs GenEval's own
+# evaluate_images.py at a pinned commit (tools/measure/src/mtr_measure/geneval.py).
+# Changing anything here means scoring every text-to-image model again.
+[project]
+name = "mtr-geneval"
+version = "0.0.0"
+requires-python = "==3.9.*"
+dependencies = [
+  "torch==1.12.1+cu113",
+  "torchvision==0.13.1+cu113",
+  "mmcv-full==1.7.1",
+  # GenEval's README installs mmdetection's 2.x branch from git; 2.28.2 is that branch's last release.
+  "mmdet==2.28.2",
+  "open-clip-torch==2.20.0",
+  "clip-benchmark==1.4.0",
+  "pandas==1.5.3",
+  "numpy==1.23.1",
+  "pillow==9.4.0",
+  # torch 1.12 imports it (torch.utils.cpp_extension), and environment.yml has it from conda.
+  "setuptools==66.0.0",
+  # NVRTC 11.8, which the tool preloads for the evaluator (mtr_measure/geneval.py, nvrtc()): torch 1.12 compiles a few
+  # kernels at first use, and the NVRTC 11.3 it bundles doesn't know sm_89 (RTX 40) and later.
+  "nvidia-cuda-nvrtc-cu11==11.8.89",
+]
+
+[tool.uv]
+package = false
+# Linux with an NVIDIA GPU only, as the rest of the tool.
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+# environment.yml's pins for the packages these pull in.
+constraint-dependencies = [
+  "addict==2.4.0",
+  "certifi==2023.11.17",
+  "charset-normalizer==2.0.4",
+  "contourpy==1.0.7",
+  "cycler==0.11.0",
+  "filelock==3.12.0",
+  "fonttools==4.39.4",
+  "ftfy==6.1.1",
+  "huggingface-hub==0.19.4",
+  "idna==3.4",
+  "importlib-metadata==6.6.0",
+  "importlib-resources==5.12.0",
+  "joblib==1.2.0",
+  "kiwisolver==1.4.4",
+  "matplotlib==3.7.1",
+  "opencv-python==4.6.0.66",
+  "packaging==23.1",
+  "protobuf==3.20.3",
+  "pycocoevalcap==1.2",
+  "pycocotools==2.0.6",
+  "pyparsing==3.0.9",
+  "python-dateutil==2.8.2",
+  "pytz==2023.3",
+  "pyyaml==6.0",
+  "regex==2023.5.5",
+  "requests==2.29.0",
+  "safetensors==0.3.1",
+  "scikit-learn==1.2.2",
+  "scipy==1.9.1",
+  "sentencepiece==0.1.99",
+  "six==1.16.0",
+  "terminaltables==3.1.10",
+  "threadpoolctl==3.1.0",
+  "timm==0.9.2",
+  "tokenizers==0.15.0",
+  "tomli==2.0.1",
+  "tqdm==4.65.0",
+  "transformers==4.36.1",
+  "typing-extensions==4.5.0",
+  "urllib3==1.26.15",
+  "wcwidth==0.2.6",
+  "webdataset==0.2.48",
+  "braceexpand==0.1.7",
+  "yapf==0.33.0",
+  "zipp==3.15.0",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu113"
+url = "https://download.pytorch.org/whl/cu113"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu113" }
+torchvision = { index = "pytorch-cu113" }
+mmcv-full = { url = "https://download.openmmlab.com/mmcv/dist/cu113/torch1.12.0/mmcv_full-1.7.1-cp39-cp39-manylinux1_x86_64.whl" }

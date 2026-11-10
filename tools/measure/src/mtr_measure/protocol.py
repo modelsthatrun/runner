@@ -34,6 +34,18 @@ GEN_TIMED = 10
 GEN_CHECK_WARMUP = 1
 GEN_CHECK_TIMED = 2
 GEN_SEED = 0
+# Text-to-image accuracy: GenEval (https://github.com/djghosh13/geneval, MIT), its own evaluator at a pinned
+# commit in its own environment (tools/measure/geneval/: Python 3.9, torch 1.12.1 with CUDA 11.3, mmdetection
+# 2.28.2), as its README sets it up. 553 prompts, four images each, made with the adapter's GENERATION settings
+# and nothing else: no prompt rewriter, no negative prompt. GenEval's own script seeds 42 at each prompt and
+# draws the four images in a row; each of ours is one call with its own generator, seeded 42, 43, 44 and 45.
+# The score is the mean of the six tasks' shares of correct images, 0-1 as GenEval reports it. Changing any of
+# this means scoring every text-to-image model again.
+GEN_BENCHMARKS = {
+    "geneval": {"name": "GenEval", "metric": "overall: mean of the six tasks' accuracy", "images_per_prompt": 4,
+                "seeds": [42, 43, 44, 45]},
+}
+GENEVAL_COMMIT = "af4902f24d3ca90ebbb446dd9891a59e0f82725f"
 
 # Language models (kind "llm"): the pinned llama.cpp build (engine.py), all layers on the GPU,
 # one request at a time. VRAM is reported at LLM_CONTEXT tokens of context; speed for a prompt of

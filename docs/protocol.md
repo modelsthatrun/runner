@@ -128,7 +128,7 @@ Text-to-image models are timed like image models (Latency, VRAM), with these dif
 - **The prompt set.** `tools/measure/src/mtr_measure/prompts/text-to-image.toml` holds the task's shared prompts, each with the check a correct image must pass. `mtr outputs` makes one image per prompt with the set's seed and the same settings as a timed call.
   - Changing the set raises its `version`, and every text-to-image checkpoint makes its images again.
   - The same seed doesn't give the same pixels on another GPU, driver or library version, or even in another process. Images are compared by eye, never by hash.
-- **Accuracy.** No benchmark yet. GenEval is planned.
+- **Accuracy.** GenEval (Accuracy, below).
 - **Profiles** make fewer calls (Profiles, below).
 
 ## Accuracy
@@ -145,9 +145,14 @@ Text-to-image models are timed like image models (Latency, VRAM), with these dif
   - lm-evaluation-harness 0.4.13 (`tools/measure/lmeval/`) runs against the same llama.cpp build, through its chat endpoint, with the model's own chat template.
   - The suite is IFEval and GSM8K (`gsm8k_cot_llama`, 8 worked examples as a chat), with thinking off. It takes about 11 minutes per 8B checkpoint.
   - An answer may run to 1280 tokens on both. IFEval's own configuration sets that limit. GSM8K's sets none, and lm-eval's default of 256 tokens cuts off models that reason at length, so the tool gives it the same limit. Each eval record states it in `settings.generation`.
+- **Text-to-image models.**
+  - The benchmark is GenEval (https://github.com/djghosh13/geneval, MIT): 553 prompts that ask for objects, counts, colors and positions, four images each. The score is the mean of its six tasks' shares of correct images, 0–1 as GenEval reports it, and the record keeps each task's share.
+  - The images are made like a timed call: the prompt as GenEval wrote it, the adapter's `GENERATION` settings, no prompt rewriter and no negative prompt. The four images of every prompt are seeded 42, 43, 44 and 45, each with its own generator. GenEval's own script seeds 42 once per prompt and draws the four in a row, so the structure is the same and the pixels aren't.
+  - They are scored by GenEval's own `evaluate_images.py`, unchanged and at a pinned commit, with its default options: Mask2Former (Swin-S, MMDetection) finds the objects and CLIP ViT-L/14 names their colors. It runs in its own environment, `tools/measure/geneval/`, with the versions GenEval's `environment.yml` pins: Python 3.9, torch 1.12.1 with CUDA 11.3, mmcv-full 1.7.1, and mmdetection 2.28.2, the last release of the `2.x` branch its README installs. One library is newer: torch 1.12 compiles a few kernels when first used (Mask2Former's integer product of feature-map shapes, in a trial over all six tasks), and the NVRTC 11.3 it bundles doesn't know RTX 40 GPUs (sm_89). The tool preloads NVIDIA's NVRTC 11.8 for the evaluator, so the same kernel source is compiled by a newer compiler. torch 1.12 has GPU code up to sm_86, so GenEval runs on RTX 30 and RTX 40 GPUs, and not on RTX 50. The tool also runs GenEval's `summary_scores.py` and checks that it gives the same overall score.
+  - The images are PNG files next to the record, made once: a run that stops resumes, and images made with other settings are refused. On an RTX 4090 a four-step model takes about an hour and a 50-step one about five.
 - **Data and evidence.**
   - Benchmark data downloads once into `~/.cache/modelsthatrun/datasets/` and is never published.
-  - Raw predictions stay next to the record as evidence. The record keeps their sha256.
+  - Raw predictions stay next to the record as evidence: detections, lm-eval's samples, or GenEval's images and results. The record keeps their sha256.
 
 ## Profiles
 

@@ -154,7 +154,7 @@ Results land in `models/<id>/runs/<size>.json`, with `<size>.times.json` (every 
 | `mtr check <model> --size <size>` | Downloads, loads and tries a checkpoint. Writes no record |
 | `mtr run <model> --size <size>` | One timed measurement → `models/<id>/runs/<size>.json` |
 | `mtr bench <model> [--size …]` | `check`, then `run`, for each size (or the ones named) |
-| `mtr eval <model> --size <size> --benchmark <name>` | Accuracy on a standard benchmark: COCO val2017 (downloads about 1 GB once), or IFEval and GSM8K for language models. None yet for text-to-image. Optional, and not submitted yet |
+| `mtr eval <model> --size <size> --benchmark <name>` | Accuracy on a standard benchmark: COCO val2017 (downloads about 1 GB once), IFEval and GSM8K for language models, or GenEval for text-to-image (hours: it makes 2,212 images). Optional, and not submitted yet |
 | `mtr profile <model> --size <size>` | Splits a checkpoint's GPU time by kernel → `models/<id>/profiles/<size>.json`, for estimates on other GPUs. Untimed; pauses nothing. Not submitted |
 | `mtr results` | Your records, and which can be sent or were sent |
 | `mtr login` · `logout` · `whoami` | Sign in to the inbox with GitHub |

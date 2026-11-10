@@ -94,7 +94,7 @@
     },
     "value": {
       "type": "number",
-      "description": "The headline metric, on the scale papers use (e.g. AP 0-100)"
+      "description": "The headline metric, on the scale papers use (e.g. AP 0-100, GenEval 0-1)"
     },
     "metrics": {
       "type": "object",

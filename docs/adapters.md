@@ -89,7 +89,7 @@ def weight_files(size): ...       # every weight file load() read, the denoiser'
 ```
 
 - **Settings from the model card.** `GENERATION` holds its example's resolution, steps and guidance, and the device it seeds its generator on. Where the card relies on the pipeline's defaults, write those down.
-- **The tool makes the input.** `predict()` gets the prompt and the settings in `x`, and must use them as they are. It returns one PIL image at `x.width` × `x.height`; `mtr check` refuses anything else.
+- **The tool makes the input.** `predict()` gets the prompt and the settings in `x`, and must use them as they are. It returns one PIL image at `x.width` × `x.height`; `mtr check` refuses anything else. `mtr eval --benchmark geneval` calls the same `predict()` with GenEval's prompts and seeds 42 to 45, so the generator must be seeded from `x.seed`.
 - **No offload.** Leave out `enable_model_cpu_offload()`, `enable_sequential_cpu_offload()` and the like, even when the card calls them. Everything stays on the GPU.
 - **The scheduler.** The record names the class of the pipeline's `scheduler`. A pipeline without one sets `SCHEDULER` to the sampler's name.
 - **Pin the revision.** Load from the repository's 40-hex commit, and list each weight file at that commit in `weight_files()`.

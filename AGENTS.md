@@ -89,7 +89,8 @@ Follow [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/adapters.md](docs/adapters.m
 **A text-to-image model:**
 1. **Start the directory.** `./mtr new <id> --kind generation`.
 2. **Write the adapter from the official model card:** its pipeline, dtype, resolution, steps, guidance and generator device in `GENERATION`. Leave out any CPU offload: everything stays on the GPU, and `OOM` is a result.
-3. **Check it.** `./mtr check <id> --size <size>`. There's no benchmark yet.
+3. **Check it.** `./mtr check <id> --size <size>`.
+4. **Score it, optionally.** `./mtr eval <id> --size <size> --benchmark geneval` makes 2,212 images and scores them with GenEval's own evaluator. It takes about an hour for a four-step model and five for a 50-step one on an RTX 4090, so run it in the background. Its first run installs GenEval's environment and downloads about 1.2 GB of detector and CLIP weights.
 
 **Then, for any kind:**
 - **Propose the pull request to the user.** Include the adapter, plus `pyproject.toml`, `uv.lock` and `.python-version` for an image or text-to-image model. Never include records, weights or outputs; git ignores them. Push and open it only with the user's go-ahead.

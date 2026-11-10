@@ -3,7 +3,8 @@
 Usage:
     mtr eval <model> --size <size> --benchmark coco-val2017-bbox
 
-Language models go to llmeval.py, which runs lm-evaluation-harness against llama-server.
+Language models go to llmeval.py, which runs lm-evaluation-harness against llama-server. Text-to-image models
+go to geneval.py, which makes GenEval's images and scores them with GenEval's own evaluator.
 
 It runs the checkpoint over the whole benchmark through the same adapter, uv environment and
 precision as a timed run, and scores it with the benchmark's reference implementation. It writes
@@ -77,7 +78,8 @@ PLACEHOLDERS = {"N/A", "__background__", "background"}
 def parse_args(argv: list[str]):
     p = Parser(prog="mtr eval", description="Score one checkpoint on a standard benchmark and write an eval record. Pauses nothing. "
                                             "Image models: coco-val2017-bbox (detection), coco-val2017-segm (instance segmentation); "
-                                            "COCO val2017 downloads once, about 1 GB. Language models: ifeval, gsm8k-cot.")
+                                            "COCO val2017 downloads once, about 1 GB. Language models: ifeval, gsm8k-cot. "
+                                            "Text-to-image models: geneval.")
     p.add_argument("model_dir", type=Path)
     p.add_argument("--size", required=True)
     p.add_argument("--benchmark", required=True, choices=sorted(BENCHMARKS))
@@ -142,7 +144,9 @@ def main(argv: list[str], log: Log) -> int:
         return llmeval.main(argv, log)
     if argv and not argv[0].startswith("-") and (Path(argv[0]) / "adapter.py").is_file() \
             and ad.kind_of_file(Path(argv[0]) / "adapter.py") == "generation":
-        raise MeasureError("USAGE", "Text-to-image models have no benchmark in the tool yet. GenEval is planned (docs/protocol.md, \"Image generation\")")
+        from . import geneval
+
+        return geneval.main(argv, log)
     args = parse_args(argv)
     machine.pin_gpu(args.gpu)
     bench = BENCHMARKS[args.benchmark]
