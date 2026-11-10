@@ -44,6 +44,13 @@ dataset = ""
 source = ""   # e.g. "paper, table 2"
 # benchmark = "coco-val2017-bbox"   # only if the paper used the same benchmark, split and metric that `mtr eval` measures
 
+# A speed the authors report. It is shown under ours with its conditions, and never compared with it.
+# [checkpoints.reported_speed]
+# value = 0.0
+# unit = "ms"            # "ms", "FPS", "tokens/s" or "s per image"
+# conditions = ""        # what they timed and how, as the source says it: e.g. "T4, fp16, batch 1, TensorRT, forward pass only"
+# source = ""            # e.g. "paper, table 3"
+
 # Optional: flag outputs by hand after looking at them. Files live in outputs/<size>/<image-id>.webp.
 # [[outputs]]
 # image = "street-crowd-01"

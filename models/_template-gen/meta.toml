@@ -44,6 +44,13 @@ dataset = ""
 source = ""   # e.g. "paper, table 2"
 # benchmark = ""   # none yet for text-to-image
 
+# A speed the authors report. It is shown under ours with its conditions, and never compared with it.
+# [checkpoints.reported_speed]
+# value = 0.0
+# unit = "s per image"
+# conditions = ""        # what they timed and how, as the source says it: hardware, precision, resolution, steps
+# source = ""
+
 # Optional: flag images by hand after looking at them against each prompt's check. Files live in outputs/<size>/<prompt-id>.webp.
 # [[outputs]]
 # image = "count-five-apples"   # the prompt id

@@ -46,6 +46,13 @@ dataset = ""
 source = ""   # e.g. "technical report, table 20 (non-thinking)"
 # benchmark = "ifeval"   # only if it is the same benchmark and metric that `mtr eval` measures
 
+# A speed the authors report. It is shown under ours with its conditions, and never compared with it.
+# [checkpoints.reported_speed]
+# value = 0.0
+# unit = "tokens/s"
+# conditions = ""        # what they timed and how, as the source says it: hardware, quantization, engine, context
+# source = ""
+
 # Flag answers that miss their check (tools/measure/src/mtr_measure/prompts/chat.toml) after reading them.
 # [[answers]]
 # prompt = "grounded-qa"
