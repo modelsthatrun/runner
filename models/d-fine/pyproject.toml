@@ -32,9 +32,9 @@ tensorrt-cu13-bindings = { index = "nvidia" }
 # tools/deployment/export_onnx.py checks and simplifies the ONNX file (onnx, onnxsim), torch's default exporter
 # needs onnxscript, and tools/inference/trt_inf.py imports cv2. TensorRT is NVIDIA's proprietary SDK, under the
 # license in its package.
-# D-FINE pins TensorRT 10.13.2.6, not the tool's 10.16.1.11: from 10.13.3.9 through 10.16.1.11, the engines built from
-# this export for S, M, L and X lose about 9 COCO AP even in FP32, while 10.13.2.6, 10.4 (the README's version) and
-# ONNX Runtime match PyTorch. N is right on every version (docs/protocol.md, "Runtimes").
+# D-FINE pins TensorRT 10.13.2.6, not the tool's 10.16.1.11: on 10.16.1.11 the fp16 engines built from this export
+# lose 5-13 COCO AP for S, M, L and X. On S, every release tried from 10.13.3.9 on loses about 9 AP even in FP32, while
+# 10.13.2.6, 10.4 (the README's version) and ONNX Runtime match PyTorch (docs/protocol.md, "Runtimes").
 [dependency-groups]
 tensorrt = [
   "tensorrt-cu13==10.13.2.6",
