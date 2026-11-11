@@ -101,13 +101,16 @@ def test_run_keeps_failures_with_their_reason(repo, capsys, monkeypatch):
             return False
 
     monkeypatch.setattr(runqueue.desktop, "paused", lambda log: NoPause())
-    monkeypatch.setattr(runqueue.desktop, "extend_fallback", lambda: None)
+    armed: list[float] = []
+    monkeypatch.setattr(runqueue.desktop, "extend_fallback", armed.append)
     outcomes = {"s": {"status": "ok", "code": "OK", "message": "fine", "outputs": {}},
                 "m": {"status": "fail", "code": "VARIANCE", "message": "spread 9%", "outputs": {}}}
     monkeypatch.setattr(runqueue, "run_one", lambda item: outcomes[item["size"]])
     assert cli.main(["queue", "run"]) == 31
     r = result(capsys)
     assert [x["code"] for x in r["outputs"]["results"]] == ["OK", "VARIANCE"]
+    # The fallback timer is pushed back before each item, by that item's own expected time.
+    assert len(armed) == 2 and all(a > 0 for a in armed)
     left = runqueue.load()
     assert [i["size"] for i in left] == ["m"] and left[0]["last_error"]["code"] == "VARIANCE"
 
@@ -153,3 +156,29 @@ def test_clean_lists_before_it_deletes(repo, capsys, monkeypatch, tmp_path):
     assert cli.main(["clean", str(model), "--yes"]) == 0
     assert not blob.exists() and not link.is_symlink() and not (model / ".venv").exists()
     assert (model / "adapter.py").exists()
+
+
+def test_the_fallback_timer_waits_past_a_long_run():
+    from mtr_measure import desktop
+
+    assert desktop.fallback_minutes() == desktop.FALLBACK_MINUTES
+    assert desktop.fallback_minutes(59) == desktop.FALLBACK_MINUTES + 1
+    assert desktop.fallback_minutes(30 * 60) == desktop.FALLBACK_MINUTES + 30
+    assert desktop.fallback_minutes(-5) == desktop.FALLBACK_MINUTES
+
+
+def test_extending_the_fallback_arms_it_for_the_expected_time(monkeypatch):
+    from mtr_measure import desktop
+
+    class Armed:
+        minutes: list[int] = []
+
+        def arm(self, minutes=desktop.FALLBACK_MINUTES):
+            self.minutes.append(minutes)
+
+    monkeypatch.setattr(desktop, "_armed_sunshine", Armed())
+    desktop.extend_fallback()
+    desktop.extend_fallback(29 * 60 + 1)
+    assert Armed.minutes == [desktop.FALLBACK_MINUTES, desktop.FALLBACK_MINUTES + 30]
+    monkeypatch.setattr(desktop, "_armed_sunshine", None)
+    desktop.extend_fallback(600)  # nothing paused: nothing to arm

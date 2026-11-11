@@ -12,12 +12,14 @@ while another program computes on the GPU. Games are never closed automatically.
     steam      the Steam client, Flatpak or native
 
 Several timed runs share one pause through the queue (`mtr queue run`), which pushes the fallback
-timer back before each run (extend_fallback). Any command can also be wrapped:
+timer back before each run (extend_fallback), to FALLBACK_MINUTES past the time that run is expected
+to take. Any command can also be wrapped:
     uv run --project tools/measure python -m mtr_measure.desktop -- bash -c 'mtr run …; mtr run …'
 """
 
 from __future__ import annotations
 
+import math
 import os
 import shutil
 import signal
@@ -85,13 +87,13 @@ class Sunshine:
     def is_running(self) -> bool:
         return _unit_active(self.main)
 
-    def arm(self) -> None:
-        """(Re)start the fallback timer, FALLBACK_MINUTES from now. A batch calls this before each run."""
+    def arm(self, minutes: int = FALLBACK_MINUTES) -> None:
+        """(Re)start the fallback timer, `minutes` from now. A batch calls this before each run."""
         previous = self.fallback
         self.armed += 1
         self.fallback = f"mtr-sunshine-fallback-{os.getpid()}-{self.armed}"
         systemctl = shutil.which("systemctl") or "/usr/bin/systemctl"
-        _run(["systemd-run", "--user", "--collect", f"--unit={self.fallback}", f"--on-active={FALLBACK_MINUTES}min",
+        _run(["systemd-run", "--user", "--collect", f"--unit={self.fallback}", f"--on-active={minutes}min",
               systemctl, "--user", "start", *self.units])
         if previous:
             _run(["systemctl", "--user", "stop", f"{previous}.timer"])
@@ -120,11 +122,18 @@ class Sunshine:
 _armed_sunshine: Sunshine | None = None
 
 
-def extend_fallback() -> None:
+def fallback_minutes(expected_s: float = 0) -> int:
+    """How long the fallback timer waits: FALLBACK_MINUTES past the time the work ahead is expected to take."""
+    return FALLBACK_MINUTES + math.ceil(max(float(expected_s), 0.0) / 60)
+
+
+def extend_fallback(expected_s: float = 0) -> None:
     """Restart the fallback timer before each run of a batch, so a batch longer than FALLBACK_MINUTES
-    doesn't get Sunshine back in the middle of a run. Each single run must still be shorter."""
+    doesn't get Sunshine back in the middle of a run. `expected_s` is how long the work before the next
+    call is expected to take: without it, that work must be shorter than FALLBACK_MINUTES. A timed run of
+    a slow model takes longer than that, and nothing of ours may run during it to push the timer back."""
     if _armed_sunshine is not None:
-        _armed_sunshine.arm()
+        _armed_sunshine.arm(fallback_minutes(expected_s))
 
 
 class Steam:

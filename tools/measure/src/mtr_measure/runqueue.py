@@ -183,7 +183,7 @@ def cmd_run(argv: list[str], log: Log) -> int:
     results: list[dict] = []
     with desktop.paused(log):
         for i in items:
-            desktop.extend_fallback()
+            desktop.extend_fallback(i["estimate_s"])  # a run of a slow model outlasts the timer's default
             log(f"--- #{i['n']} {i['model_dir']} / {i['size']}")
             try:
                 runtime = i.get("runtime", trt.DEFAULT)

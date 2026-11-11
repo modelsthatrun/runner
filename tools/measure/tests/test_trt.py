@@ -126,7 +126,7 @@ def test_queue_run_passes_the_runtime_and_checks_the_eval_again(repo, capsys, mo
     seen = []
     monkeypatch.setattr(runqueue, "run_one", lambda item: seen.append(item) or {"status": "ok", "code": "OK", "message": "done"})
     monkeypatch.setattr(runqueue.desktop, "paused", lambda log: __import__("contextlib").nullcontext())
-    monkeypatch.setattr(runqueue.desktop, "extend_fallback", lambda: None)
+    monkeypatch.setattr(runqueue.desktop, "extend_fallback", lambda expected_s=0: None)
     # The eval goes away after queueing: the run is refused, and the item stays.
     for f in (model / "evals" / "s").glob("*.json"):
         f.unlink()

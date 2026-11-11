@@ -30,7 +30,7 @@ An image model can also have a TensorRT row: the same checkpoint, run as an engi
 - **The CPU check.** Timed calls include CPU work. So before each run, and across each run, the tool measures what share of the CPU other programs used (`cpu.py`), leaving out its own share and the worker's. Above 15% of all logical CPUs, the run fails with `CPU_BUSY`. An idle desktop uses 1–5%.
 - **Pause hooks.** A machine that streams its desktop or runs a game launcher on the measuring GPU can name pause hooks in `~/.config/modelsthatrun/machine.toml`, for example `pause = ["sunshine", "steam"]`.
   - The hooks stop those programs for each timed run and start them again as soon as it ends, even if it fails.
-  - The Sunshine hook also arms a fallback timer that starts Sunshine again after 10 minutes, in case the tool dies first.
+  - The Sunshine hook also arms a fallback timer that starts Sunshine again after 10 minutes, in case the tool dies first. The queue sets it to 10 minutes past each run's expected length, because a run of a slow model takes longer than 10 minutes.
   - **Sunshine:** a systemd user unit, either the Flatpak's or the native packages' `sunshine.service`.
   - **Steam:** the Flatpak or the native client.
   - **Other programs** have no hook. Close them before a timed run.
