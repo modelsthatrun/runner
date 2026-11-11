@@ -77,7 +77,7 @@ def load_engine(size: str, engine: pathlib.Path) -> Model: ... # the engine in t
   tensorrt-cu13-bindings = { index = "nvidia" }
   ```
 
-  Use `tensorrt-cu12` for a torch built for CUDA 12. After `uv lock`, check that every package the PyTorch row uses kept its version.
+  Use `tensorrt-cu12` for a torch built for CUDA 12. After `uv lock`, check that every package the PyTorch row uses kept its version. Pin another TensorRT version only as `docs/protocol.md` ("Runtimes", "The environment") allows, and say why in a comment next to the pin.
 - **Order.** `mtr check --runtime tensorrt`, then `mtr eval --runtime tensorrt`, then the timed run. The queue refuses an engine that wasn't scored.
 
 ## Language models

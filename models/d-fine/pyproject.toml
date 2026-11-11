@@ -19,6 +19,9 @@ dependencies = [
 
 [tool.uv]
 package = false
+# tensorrt-cu13-libs 10.13.2.6 depends on nvidia-cuda-runtime-cu13, a placeholder on PyPI that refuses to build.
+# torch's CUDA 13 build already installs the CUDA runtime (nvidia-cuda-runtime), so this drops the placeholder.
+override-dependencies = ["nvidia-cuda-runtime-cu13; sys_platform == 'never'"]
 
 [tool.uv.sources]
 mtr-measure = { path = "../../tools/measure", editable = true }
@@ -29,11 +32,14 @@ tensorrt-cu13-bindings = { index = "nvidia" }
 # tools/deployment/export_onnx.py checks and simplifies the ONNX file (onnx, onnxsim), torch's default exporter
 # needs onnxscript, and tools/inference/trt_inf.py imports cv2. TensorRT is NVIDIA's proprietary SDK, under the
 # license in its package.
+# D-FINE pins TensorRT 10.13.2.6, not the tool's 10.16.1.11: from 10.13.3.9 through 10.16.1.11, the engines built from
+# this export for S, M, L and X lose about 9 COCO AP even in FP32, while 10.13.2.6, 10.4 (the README's version) and
+# ONNX Runtime match PyTorch. N is right on every version (docs/protocol.md, "Runtimes").
 [dependency-groups]
 tensorrt = [
-  "tensorrt-cu13==10.16.1.11",
-  "tensorrt-cu13-libs==10.16.1.11",
-  "tensorrt-cu13-bindings==10.16.1.11",
+  "tensorrt-cu13==10.13.2.6",
+  "tensorrt-cu13-libs==10.13.2.6",
+  "tensorrt-cu13-bindings==10.13.2.6",
   "onnx",
   "onnxsim",
   "onnxscript",

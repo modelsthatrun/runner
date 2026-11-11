@@ -138,7 +138,7 @@ Text-to-image models are timed like image models (Latency, VRAM), with these dif
 A runtime is how a checkpoint's call executes. Every record names one, or means the default.
 
 - **`pytorch-cuda`, the default.** The official PyTorch code, eager, on the GPU. A record without a `runtime` block is this one.
-- **`tensorrt`.** An engine built from the authors' own ONNX export, with TensorRT 10.16.1.11, run the way their TensorRT inference code runs it. It is another measurement of the same checkpoint: the weights, the license and the outputs stay the checkpoint's.
+- **`tensorrt`.** An engine built from the authors' own ONNX export, with the pinned TensorRT ("The environment", below), run the way their TensorRT inference code runs it. It is another measurement of the same checkpoint: the weights, the license and the outputs stay the checkpoint's.
 - **Other kinds keep their runtime.** Language models already run on llama.cpp, and text-to-image models on their PyTorch pipeline.
 
 **The official path only.** A model has a TensorRT row only where its authors publish the whole path: an export script or export API, and code that runs the result. The adapter calls them with the arguments their README gives (`docs/adapters.md`).
@@ -170,6 +170,8 @@ A runtime is how a checkpoint's call executes. Every record names one, or means 
 
 **The environment.** TensorRT sits in an optional dependency group, `tensorrt`, in the model's own `pyproject.toml`, with the libraries from NVIDIA's index (`https://pypi.nvidia.com`) pinned in `uv.lock` with their hashes. `--runtime tensorrt` adds `--group tensorrt` to `uv run`.
 - Adding the group must leave every other locked package at its version.
+- **One version, with exceptions.** Every model pins TensorRT 10.16.1.11, unless an eval shows that its engines give wrong outputs for that model while an earlier release gives the right ones. That model then pins the newest release whose engines score like its PyTorch row, says why in its `pyproject.toml`, and its records name the version. Rows of one runtime may therefore differ in TensorRT version, as PyTorch rows differ in torch version.
+  - D-FINE pins 10.13.2.6. On every release tried from 10.13.3.9 to 10.16.1.11, engines built from its export lose about 9 COCO AP for S, M, L and X, even in FP32. On 10.13.2.6 every size scores within 0.1 AP of PyTorch, as 10.4 (the version its README uses) and ONNX Runtime on the same file do for the sizes tried. N is right on every version. 10.13.2.6's library carries kernels for sm_75 to sm_120, as 10.16.1.11's does.
 - `uv run` doesn't remove packages a command doesn't ask for, so after a TensorRT command the group stays installed in the model's environment. PyTorch rows never import it.
 - **License.** TensorRT is NVIDIA's proprietary SDK. Installing the group means accepting the NVIDIA Software License Agreement and its TensorRT supplement, in `LICENSE.txt` of the `tensorrt` package. Among other terms it allows use only on systems with NVIDIA GPUs and lets the software collect non-personal information about the system. Read it before you install.
 
