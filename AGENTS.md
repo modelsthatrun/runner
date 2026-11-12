@@ -24,6 +24,7 @@ Instructions for AI coding agents working in this repository: Claude Code, Codex
 4. **Ask before a timed run on a machine someone is using.**
    - `mtr run`, `mtr bench` and `mtr queue run` hold the GPU and need a quiet CPU for a few minutes each. Pause hooks in `machine.toml` may stop the user's streaming or game launcher for that time.
    - `mtr check`, `mtr eval` and `mtr profile` pause nothing, except `mtr eval --benchmark geneval --pause`. It holds the pause hooks for hours, so it needs the user's go-ahead like a timed run.
+   - A CPU row's timed run (`--runtime pytorch-cpu`, `onnxruntime-cpu` or `llamacpp-cpu`) pauses nothing, but uses every core for minutes to hours and needs the machine quiet. Ask first too.
 5. **Never close the user's programs.** That covers games, videos, browsers and training jobs. If the GPU or the CPU is busy (`GPU_BUSY`, `CPU_BUSY`, `VRAM_LOW`), say which program it is and let the user decide.
 6. **Never lower settings to make a model fit.** `OOM` at the protocol's settings is a result: the checkpoint doesn't run on this GPU.
 7. **Licenses come from primary sources only.** Take them from the repository's LICENSE file and from the model card of that exact checkpoint, with the URL and the date you read them. Never use blogs, vendor posts or memory.
