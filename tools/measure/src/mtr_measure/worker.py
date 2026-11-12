@@ -148,10 +148,8 @@ def run(spec: dict) -> dict:
         if runtime == "tensorrt":
             model = a.load_engine(size, Path(spec["engine"]))
         elif runtime == "onnxruntime-cpu":
-            from . import ort
-
+            # The session is checked after the timed calls (threads_used): a package may make it on the first call.
             model = a.load_onnx(size, Path(spec["onnx"]))
-            ort.check_session(a.onnx_session(model))
         else:
             model = a.load(size, precision)
     except MeasureError:

@@ -23,6 +23,13 @@ tensorrt-cu13-bindings = { index = "nvidia" }
 # writes the ONNX file first and asks for onnx, onnxslim and an onnxruntime build; the adapter turns its auto-install
 # off, so they are pinned here. TensorRT is NVIDIA's proprietary SDK, under the license in its package.
 [dependency-groups]
+# ONNX Runtime rows on the CPU (docs/protocol.md, "CPU rows"), installed only for `--runtime onnxruntime-cpu`: what
+# Ultralytics' ONNX export (onnx, onnxslim) and its ONNX backend (onnxruntime) need.
+onnxruntime = [
+  "onnxruntime==1.31.1; python_version >= '3.11'",
+  "onnx>=1.12.0,<2.0.0",
+  "onnxslim>=0.1.82",
+]
 tensorrt = [
   "tensorrt-cu13==10.16.1.11",
   "tensorrt-cu13-libs==10.16.1.11",

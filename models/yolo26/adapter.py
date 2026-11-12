@@ -16,6 +16,11 @@ The TensorRT row is the docs' TensorRT integration: `model.export(format="engine
 TensorRT's Python API (ultralytics/utils/export/engine.py, onnx2engine): the FP16 flag, a static 640x640 input,
 TensorRT's own workspace. nms stays at its default, so the engine holds the one-to-many head and NMS runs outside it,
 as predict() and the docs' mAP column run it. A static engine is letterboxed to the full 640x640.
+
+Its ONNX Runtime row on the CPU is the docs' ONNX integration: `model.export(format="onnx")` with the export's defaults
+(a static 640x640 input, onnxslim, NMS outside the graph), then `YOLO("yolo26n.onnx")` called like the .pt model,
+which runs ONNX Runtime with the CPU provider on a CPU (ultralytics/nn/backends/onnx.py). A static model is letterboxed
+to the full 640x640.
 """
 
 import math
@@ -49,6 +54,8 @@ TENSORRT = {"precision": "fp16", "builder": {"fp16": True}, "status": "runs-as-i
 ENGINE_EXPORT = {"format": "engine", "quantize": 16, "imgsz": IMGSZ, "device": 0}
 # Ultralytics names the first GPU 0 and the CPU "cpu".
 DEVICE = 0 if device() == "cuda" else "cpu"
+ONNXRUNTIME = {"status": "runs-as-is", "input": f"{IMGSZ}x{IMGSZ}"}
+ONNX_EXPORT = {"format": "onnx", "imgsz": IMGSZ}
 
 
 def input_size(size, image):
@@ -76,16 +83,16 @@ def export_engine(size, out):
 
 def load_engine(size, engine):
     # The engine file carries Ultralytics' metadata (names, stride, image size) ahead of TensorRT's plan.
-    return {"model": YOLO(str(engine), task="detect")}
+    return {"model": YOLO(str(engine), task="detect"), "engine": True}
 
 
 def engine_device(m):
-    # An engine runs on the GPU; the .pt model on the tool's device.
-    return 0 if "quantize" not in m else DEVICE
+    # A TensorRT engine runs on the GPU; the .pt model and the ONNX file on the tool's device.
+    return 0 if m.get("engine") else DEVICE
 
 
 def precision_args(m):
-    # An engine's precision was set when it was built, and the docs call it with no precision argument.
+    # An engine's or an ONNX file's precision was set when it was made, and the docs call it with no precision argument.
     return {"quantize": m["quantize"]} if "quantize" in m else {}
 
 
@@ -121,6 +128,22 @@ def eval_predict(m, x):
 
 def weight_files(size):
     return [WEIGHTS / f"yolo26{size}.pt"]
+
+
+def onnx_file(size, out):
+    link = out / f"yolo26{size}.pt"
+    link.symlink_to(weight_files(size)[0])
+    onnx = Path(YOLO(str(link)).export(**ONNX_EXPORT))
+    return {"onnx": onnx, "exporter": f"{PACKAGE} YOLO.export", "args": [f"{k}={v}" for k, v in ONNX_EXPORT.items()]}
+
+
+def load_onnx(size, onnx):
+    return {"model": YOLO(str(onnx), task="detect")}
+
+
+def onnx_session(m):
+    # AutoBackend makes the session on the first call (ultralytics/nn/backends/onnx.py).
+    return m["model"].predictor.model.session
 
 
 def to_prediction(m, x, out):

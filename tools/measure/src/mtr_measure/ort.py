@@ -9,9 +9,10 @@ An adapter with an ONNX Runtime row declares (docs/adapters.md):
     ONNXRUNTIME: dict            {"status": "runs-as-is"}, plus "patch": "fixes/<file>" when status is runs-with-fixes,
                                  and "input": "WxH" (or one per size) when the official ONNX inference code feeds another
                                  input than the PyTorch row's
-    export_onnx(size, out)       the official export, as for a TensorRT row (trt.py), or
-    onnx_file(size, out)         for an ONNX file the authors publish: fetches it into `out` and returns
-                                 {"onnx": Path, "exporter": "where it comes from", "args": []}
+    onnx_file(size, out)         the ONNX file the official ONNX Runtime code runs, written into `out`: the official export
+                                 of the released checkpoint, or the file the authors publish. Returns {"onnx": Path,
+                                 "exporter": "the export, or where the file comes from", "args": [...]}. Without it,
+                                 export_onnx(), the TensorRT row's export (trt.py), when the two rows share one
     load_onnx(size, onnx)        an onnxruntime.InferenceSession made the way the official inference code makes it, and
                                  whatever predict() needs. predict() and to_prediction() take what it returns
     onnx_session(model)          the InferenceSession in what load_onnx() returned, for the tool to check: it computes on
@@ -59,10 +60,10 @@ def adapter_spec(a: Any) -> dict:
     if spec is None:
         raise MeasureError("USAGE", "This model has no ONNX Runtime row: its adapter declares no ONNXRUNTIME, because its authors "
                                     "publish no ONNX export with ONNX Runtime inference code (docs/adapters.md)")
-    sources = [n for n in ("export_onnx", "onnx_file") if callable(getattr(a, n, None))]
+    sources = [n for n in ("onnx_file", "export_onnx") if callable(getattr(a, n, None))]
     hooks = all(callable(getattr(a, n, None)) for n in ("load_onnx", "onnx_session"))
-    if not isinstance(spec, dict) or not hooks or len(sources) != 1:
-        raise MeasureError("ADAPTER_INTERFACE", "An adapter with ONNXRUNTIME needs load_onnx(), onnx_session() and one of export_onnx() or onnx_file()")
+    if not isinstance(spec, dict) or not hooks or not sources:
+        raise MeasureError("ADAPTER_INTERFACE", "An adapter with ONNXRUNTIME needs load_onnx(), onnx_session() and onnx_file() (or export_onnx())")
     status = spec.get("status", "runs-as-is")
     if status not in STATUSES:
         raise MeasureError("ADAPTER_INTERFACE", f"ONNXRUNTIME['status'] must be one of {STATUSES}, got {status!r}")
