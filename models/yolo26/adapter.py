@@ -24,7 +24,7 @@ from pathlib import Path
 
 import torch
 
-from mtr_measure import weights_dir
+from mtr_measure import device, weights_dir
 from mtr_measure.predictions import Boxes
 
 WEIGHTS = weights_dir("yolo26")
@@ -47,6 +47,8 @@ IMGSZ = 640
 STRIDE = 32
 TENSORRT = {"precision": "fp16", "builder": {"fp16": True}, "status": "runs-as-is", "input": f"{IMGSZ}x{IMGSZ}"}
 ENGINE_EXPORT = {"format": "engine", "quantize": 16, "imgsz": IMGSZ, "device": 0}
+# Ultralytics names the first GPU 0 and the CPU "cpu".
+DEVICE = 0 if device() == "cuda" else "cpu"
 
 
 def input_size(size, image):
@@ -59,7 +61,7 @@ def input_size(size, image):
 
 def load(size, precision):
     model = YOLO(str(weight_files(size)[0]))
-    model.to("cuda")
+    model.to(device())
     return {"model": model, "quantize": 16 if precision == "fp16" else 32}
 
 
@@ -77,6 +79,11 @@ def load_engine(size, engine):
     return {"model": YOLO(str(engine), task="detect")}
 
 
+def engine_device(m):
+    # An engine runs on the GPU; the .pt model on the tool's device.
+    return 0 if "quantize" not in m else DEVICE
+
+
 def precision_args(m):
     # An engine's precision was set when it was built, and the docs call it with no precision argument.
     return {"quantize": m["quantize"]} if "quantize" in m else {}
@@ -84,7 +91,7 @@ def precision_args(m):
 
 @torch.inference_mode()
 def predict(m, x):
-    return m["model"].predict(x, imgsz=IMGSZ, device=0, verbose=False, **precision_args(m))[0]
+    return m["model"].predict(x, imgsz=IMGSZ, device=engine_device(m), verbose=False, **precision_args(m))[0]
 
 
 def phase_times(m, out):
@@ -108,7 +115,7 @@ class ValNMSPredictor(DetectionPredictor):
 @torch.inference_mode()
 def eval_predict(m, x):
     # model.val() on COCO: conf 0.001, up to 300 detections, multi-label NMS (DetectionValidator.postprocess).
-    return m["model"].predict(x, imgsz=IMGSZ, device=0, conf=0.001, max_det=300, verbose=False,
+    return m["model"].predict(x, imgsz=IMGSZ, device=engine_device(m), conf=0.001, max_det=300, verbose=False,
                               predictor=ValNMSPredictor, **precision_args(m))[0]
 
 

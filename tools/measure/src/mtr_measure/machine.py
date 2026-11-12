@@ -76,6 +76,18 @@ def facts(gpu) -> dict:
     }
 
 
+def cpu_facts() -> dict:
+    """What a CPU row's record says about the machine (docs/protocol.md, "CPU rows"): no GPU, which was hidden."""
+    from . import hostmem
+
+    cores, threads = hostmem.cores()
+    out: dict = {"cpu": cpu_model(), "cpu_cores": cores, "cpu_threads": threads, "ram_total_mib": hostmem.total_mib(), "os": os_name()}
+    limit = hostmem.power_limit_w()
+    if limit:
+        out["cpu_power_limit_w"] = limit
+    return out
+
+
 def _git(*args: str) -> str | None:
     try:
         proc = subprocess.run(["git", "-C", str(paths.root()), *args], capture_output=True, text=True, timeout=10)

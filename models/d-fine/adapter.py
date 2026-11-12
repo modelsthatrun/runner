@@ -23,7 +23,7 @@ import torch
 import torch.nn as nn
 import torchvision.transforms as T
 
-from mtr_measure import weights_dir
+from mtr_measure import device, weights_dir
 from mtr_measure.predictions import Boxes
 
 REPO_URL = "https://github.com/Peterande/D-FINE.git"
@@ -78,7 +78,7 @@ def load(size, precision):
         def forward(self, images, orig_target_sizes):
             return self.postprocessor(self.model(images), orig_target_sizes)
 
-    return {"net": Model().to("cuda"), "transforms": T.Compose([T.Resize((640, 640)), T.ToTensor()]), "names": coco_names()}
+    return {"net": Model().to(device()), "transforms": T.Compose([T.Resize((640, 640)), T.ToTensor()]), "names": coco_names()}
 
 
 def coco_names():
@@ -130,14 +130,14 @@ def eval_predict(m, x):
     if "trt" in m:
         return trt_call(m, x)
     w, h = x.size
-    labels, boxes, scores = m["net"](m["transforms"](x).unsqueeze(0).to("cuda"), torch.tensor([[w, h]], device="cuda"))
+    labels, boxes, scores = m["net"](m["transforms"](x).unsqueeze(0).to(device()), torch.tensor([[w, h]], device=device()))
     return labels[0].cpu(), boxes[0].cpu(), scores[0].cpu()
 
 
 # predict() in the three phases `mtr profile` times apart: the tensor on the GPU, the network, and the decoded result.
 @torch.inference_mode()
 def preprocess(m, x):
-    return m["transforms"](x).unsqueeze(0).to("cuda")
+    return m["transforms"](x).unsqueeze(0).to(device())
 
 
 @torch.inference_mode()
@@ -148,7 +148,7 @@ def forward(m, images):
 @torch.inference_mode()
 def postprocess(m, raw, x):
     w, h = x.size
-    labels, boxes, scores = m["net"].postprocessor(raw, torch.tensor([[w, h]], device="cuda"))
+    labels, boxes, scores = m["net"].postprocessor(raw, torch.tensor([[w, h]], device=device()))
     labels, boxes, scores = labels[0].cpu(), boxes[0].cpu(), scores[0].cpu()
     keep = scores > THRESHOLD
     return labels[keep], boxes[keep], scores[keep]

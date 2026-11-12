@@ -46,6 +46,20 @@ CODES: dict[str, tuple[int, str]] = {
     "VRAM_LOW": (26, "Not enough free GPU memory next to the other programs on the GPU. Close what holds it, or ask whoever uses the machine."),
     "CPU_BUSY": (27, "Another program kept the CPU busy (a build, a download, an encoder), and timed calls include CPU work. "
                      "Run it again when the machine is quiet. Never stop other programs yourself."),
+    "CPU_UNSUPPORTED": (17, "The official code doesn't run on a CPU (a CUDA-only kernel, say). That is the result for a CPU row: "
+                            "`mtr run --runtime …` records it. Never patch the model to make it run."),
+    "PRECISION": (18, "On the CPU the official code computed in half precision, which a CPU only emulates, so it isn't timed. "
+                      "That is the result: `mtr run --runtime …` records it. Never force another precision."),
+    "NOT_MATCHED": (19, "The CPU's output on the timing input doesn't match the GPU's within the tolerance, or the GPU check that "
+                        "saves the reference is missing or stale. Run `mtr check` on the GPU, then on the CPU runtime again."),
+    "OVER_LIMIT": (32, "One call ran past the longest call the protocol times on a CPU. That is the result: a quiet `mtr run` records it."),
+    "UNSTEADY": (33, "The timed calls slowed down or sped up within the run (the CPU's clock or power state changed). Run it again "
+                     "on an idle machine."),
+    "THROTTLED": (34, "The CPU throttled for heat during the run, so its timings are slower than the machine's. Let it cool, check "
+                      "its cooling, and run it again."),
+    "RAM_LOW": (35, "Not enough free memory, or the run's process was swapped out. Close what holds memory, or ask whoever uses "
+                    "the machine. Never stop other programs yourself."),
+    "GPU_TOUCHED": (36, "A CPU row's process could see or use the GPU. This is a tool bug: report it."),
     "SCHEMA": (30, "The record fails its schema. If the adapter is fine, this is a tool bug: report it, and never edit the record."),
     "QUEUE": (31, "See `mtr queue list`."),
     "DATASET": (40, "The benchmark data is missing or damaged. Run the command again to download it, or check the disk space."),

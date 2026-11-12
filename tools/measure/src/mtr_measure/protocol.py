@@ -22,6 +22,30 @@ MAX_SPREAD = 0.10
 CHECK_WARMUP = 3
 CHECK_TIMED = 5
 
+# CPU rows (runtimes pytorch-cpu, onnxruntime-cpu and llamacpp-cpu, docs/protocol.md "CPU rows"): the same three
+# fresh processes and MAX_SPREAD, fewer calls, fp32 only, on CPU_THREADS threads (the physical cores, as PyTorch,
+# ONNX Runtime and llama.cpp each default to). A call takes 30-1000 times longer than on the GPU, so each run makes
+# CPU_WARMUP + CPU_TIMED calls, or the slow tier's when one call takes more than CPU_SLOW_CALL_S.
+CPU_WARMUP = 5
+CPU_TIMED = 30
+CPU_SLOW_CALL_S = 10.0
+CPU_SLOW_WARMUP = 1
+CPU_SLOW_TIMED = 5
+CPU_GEN_WARMUP = 1
+CPU_GEN_TIMED = 5
+CPU_LLM_WARMUP = 1
+CPU_LLM_TIMED = 5
+CPU_CHECK_WARMUP = 1
+CPU_CHECK_TIMED = 2
+# The longest call a CPU row times. A checkpoint whose call runs past it gets a record that says so instead of a number.
+CPU_CALL_LIMIT_S = 300.0
+# Warm-up goes on until it has lasted this long, so a desktop CPU's short boost above its sustained power limit is over
+# before the timed calls start. Provisional: set from the first batch, as MAX_SPREAD was.
+CPU_WARMUP_MIN_S = 60.0
+# Largest allowed |median of the first half of the timed calls - median of the second half| / median. A run whose
+# calls drift (a clock or power state changing) is refused instead of averaged.
+CPU_STEADY_LIMIT = 0.05
+
 # Accuracy evals pause nothing, so they need this much free VRAM on top of
 # what `check` saw the model use.
 EVAL_VRAM_MARGIN_MIB = 1024

@@ -22,7 +22,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from . import desktop, paths, protocol, record, trt
+from . import desktop, paths, protocol, record, runtimes, trt
 from .cli import Log, Parser
 from .errors import MeasureError, emit, parse_result
 
@@ -56,14 +56,15 @@ def rel(path: Path) -> str:
         return str(path.resolve())
 
 
-def read_check(model_dir: Path, size: str, runtime: str = trt.DEFAULT) -> dict:
-    """The passed check for this checkpoint on this runtime, if it still matches the adapter and the lock."""
+def read_check(model_dir: Path, size: str, runtime: str = runtimes.DEFAULT, allow_not_timed: bool = False) -> dict:
+    """The passed check for this checkpoint on this runtime, if it still matches the adapter and the lock. With
+    allow_not_timed, also a CPU row's failed check whose failure is its result (cpurun.NOT_TIMED)."""
     path = record.check_path(model_dir, size, runtime)
-    flag = f" --runtime {runtime}" if runtime != trt.DEFAULT else ""
+    flag = f" --runtime {runtime}" if runtime != runtimes.DEFAULT else ""
     if not path.is_file():
         raise MeasureError("NOT_CHECKED", f"No passed check for {model_dir.name} / {size}{flag}. Run `mtr check {rel(model_dir)} --size {size}{flag}` first.")
     check = json.loads(path.read_text())
-    if not check.get("ok"):
+    if not check.get("ok") and not (allow_not_timed and check.get("not_timed")):
         raise MeasureError("NOT_CHECKED", f"The last check of {model_dir.name} / {size} failed. Fix it and check again.")
     now = record.fingerprint(model_dir)
     if {k: check.get(k) for k in now} != now:
@@ -74,6 +75,10 @@ def read_check(model_dir: Path, size: str, runtime: str = trt.DEFAULT) -> dict:
 
 
 def estimate_s(check: dict) -> float:
+    if runtimes.is_cpu(check.get("runtime")):
+        from .cpurun import estimate_s as cpu_estimate
+
+        return cpu_estimate(check)
     if check.get("kind") == "llm":
         return protocol.RUNS * (float(check.get("approx_run_s") or 60) + BASELINE_S)
     calls = protocol.GEN_WARMUP + protocol.GEN_TIMED if check.get("kind") == "generation" else protocol.WARMUP + protocol.TIMED
@@ -92,8 +97,9 @@ def cmd_add(argv: list[str], log: Log) -> int:
     p.add_argument("--input", dest="inputs", type=Path, action="append", default=[],
                    help="Image and text-to-image models: the input file (default: the task's timing input). Repeat for models that take several")
     p.add_argument("--note", default="", help="Why, for whoever runs the queue, e.g. 'new adapter for RF-DETR medium'")
-    p.add_argument("--runtime", default=trt.DEFAULT, choices=trt.RUNTIMES,
-                   help="tensorrt: the engine `mtr check --runtime tensorrt` built. It must be scored first (`mtr eval --runtime tensorrt`)")
+    p.add_argument("--runtime", default=runtimes.DEFAULT, choices=runtimes.RUNTIMES,
+                   help="tensorrt: the engine `mtr check --runtime tensorrt` built. It must be scored first (`mtr eval --runtime tensorrt`). "
+                        "A CPU runtime: its check must match the GPU's output, or have found why the row gets no number")
     args = p.parse_args(argv)
     model_dir = args.model_dir.resolve()
     if not (model_dir / "adapter.py").is_file():
@@ -101,16 +107,26 @@ def cmd_add(argv: list[str], log: Log) -> int:
     for f in args.inputs:
         if not f.is_file():
             raise MeasureError("USAGE", f"Input file not found: {f}")
-    check = read_check(model_dir, args.size, args.runtime)
-    if args.runtime != trt.DEFAULT:
+    cpu_row = runtimes.is_cpu(args.runtime)
+    check = read_check(model_dir, args.size, args.runtime, allow_not_timed=cpu_row)
+    if args.runtime == "tensorrt":
         # A runtime row is scored before it is timed (docs/protocol.md, "Runtimes"), on this very engine.
         trt.verify_engine(check)
         log(f"eval of this engine: {rel(trt.require_eval(model_dir, args.size, check))}")
+    elif cpu_row:
+        # A CPU row matches the GPU's output instead (docs/protocol.md, "CPU rows").
+        from . import cpurun
+
+        m = cpurun.require_ready(model_dir, args.size, args.runtime, check)
+        log("match with the GPU's output: passed" if m and m.get("reference") else
+            f"no number expected: {check['not_timed']['reason']}" if check.get("not_timed") else
+            "one call ran past the limit in the check; the run confirms it on a quiet machine" if check.get("over_limit") else
+            "image checked, not blank")
     items = load()
     item = {"model_dir": rel(model_dir), "size": args.size, "inputs": [rel(f) for f in args.inputs]}
-    if args.runtime != trt.DEFAULT:
+    if args.runtime != runtimes.DEFAULT:
         item["runtime"] = args.runtime  # older items have no key, and mean the default
-    if any({k: i.get(k) for k in item} == item and i.get("runtime", trt.DEFAULT) == args.runtime for i in items):
+    if any({k: i.get(k) for k in item} == item and i.get("runtime", runtimes.DEFAULT) == args.runtime for i in items):
         return emit("OK", f"{item['model_dir']} / {args.size} is already queued", {"queued": len(items)}, log=log)
     n = max((i["n"] for i in items), default=0) + 1
     items.append({"n": n, **item, "note": args.note, "estimate_s": round(estimate_s(check)),
@@ -130,7 +146,7 @@ def cmd_list(argv: list[str], log: Log) -> int:
     for i in items:
         err = f"  last failure: {i['last_error']['code']}: {i['last_error']['message']}" if i.get("last_error") else ""
         note = f"  ({i['note']})" if i.get("note") else ""
-        on = f" on {i['runtime']}" if i.get("runtime", trt.DEFAULT) != trt.DEFAULT else ""
+        on = f" on {i['runtime']}" if i.get("runtime", runtimes.DEFAULT) != runtimes.DEFAULT else ""
         log(f"#{i['n']} {i['model_dir']} / {i['size']}{on}  input {', '.join(i['inputs']) or 'timing input'}  ~{minutes(i['estimate_s'])}{note}{err}")
     total = PAUSE_OVERHEAD_S + sum(i["estimate_s"] for i in items)
     return emit("OK", f"{len(items)} run(s) waiting, about {minutes(total)} with the pause",
@@ -160,7 +176,7 @@ def run_one(item: dict) -> dict:
     cmd = [sys.executable, "-m", "mtr_measure.main", "run", item["model_dir"], "--size", item["size"]]
     for f in item["inputs"]:
         cmd += ["--input", f]
-    if item.get("runtime", trt.DEFAULT) != trt.DEFAULT:
+    if item.get("runtime", runtimes.DEFAULT) != runtimes.DEFAULT:
         cmd += ["--runtime", item["runtime"]]
     proc = subprocess.Popen(cmd, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     out: list[str] = []
@@ -173,6 +189,26 @@ def run_one(item: dict) -> dict:
     return result or {"status": "fail", "code": "FAILED", "message": f"`mtr run` exited with code {proc.returncode} without a result"}
 
 
+def run_item(i: dict, log: Log) -> dict:
+    log(f"--- #{i['n']} {i['model_dir']} / {i['size']}" + (f" on {i['runtime']}" if i.get("runtime") else ""))
+    try:
+        runtime = i.get("runtime", runtimes.DEFAULT)
+        model_dir = paths.root() / i["model_dir"]
+        check = read_check(model_dir, i["size"], runtime, allow_not_timed=runtimes.is_cpu(runtime))
+        if runtime == "tensorrt":
+            # Again, in case the engine was built again after it was queued: its eval must be of these bytes.
+            trt.verify_engine(check)
+            trt.require_eval(model_dir, i["size"], check)
+        elif runtimes.is_cpu(runtime):
+            from . import cpurun
+
+            cpurun.require_ready(model_dir, i["size"], runtime, check)
+        res = run_one(i)
+    except MeasureError as e:
+        res = {"status": "fail", "code": e.code, "message": str(e)}
+    return {"n": i["n"], "model_dir": i["model_dir"], "size": i["size"], **{k: res.get(k) for k in ("status", "code", "message", "outputs")}}
+
+
 def cmd_run(argv: list[str], log: Log) -> int:
     Parser(prog="mtr queue run", description="Measure everything in the queue, running the pause hooks once.").parse_args(argv)
     items = load()
@@ -181,21 +217,18 @@ def cmd_run(argv: list[str], log: Log) -> int:
     total = PAUSE_OVERHEAD_S + sum(i["estimate_s"] for i in items)
     log(f"measuring {len(items)} queued run(s), about {minutes(total)}")
     results: list[dict] = []
-    with desktop.paused(log):
-        for i in items:
-            desktop.extend_fallback(i["estimate_s"])  # a run of a slow model outlasts the timer's default
-            log(f"--- #{i['n']} {i['model_dir']} / {i['size']}")
-            try:
-                runtime = i.get("runtime", trt.DEFAULT)
-                check = read_check(paths.root() / i["model_dir"], i["size"], runtime)
-                if runtime != trt.DEFAULT:
-                    # Again, in case the engine was built again after it was queued: its eval must be of these bytes.
-                    trt.verify_engine(check)
-                    trt.require_eval(paths.root() / i["model_dir"], i["size"], check)
-                res = run_one(i)
-            except MeasureError as e:
-                res = {"status": "fail", "code": e.code, "message": str(e)}
-            results.append({"n": i["n"], "model_dir": i["model_dir"], "size": i["size"], **{k: res.get(k) for k in ("status", "code", "message", "outputs")}})
+    # GPU rows run inside one pause of the hooks. CPU rows hold no GPU, so they run after it, with the desktop back.
+    gpu_items = [i for i in items if not runtimes.is_cpu(i.get("runtime"))]
+    cpu_items = [i for i in items if runtimes.is_cpu(i.get("runtime"))]
+    if gpu_items:
+        with desktop.paused(log):
+            for i in gpu_items:
+                desktop.extend_fallback(i["estimate_s"])  # a run of a slow model outlasts the timer's default
+                results.append(run_item(i, log))
+    if cpu_items:
+        log(f"--- {len(cpu_items)} CPU row(s): nothing is paused, and the machine must stay quiet")
+        for i in cpu_items:
+            results.append(run_item(i, log))
 
     done = {r["n"] for r in results if r["status"] == "ok"}
     stamp = datetime.now().astimezone().isoformat(timespec="seconds")

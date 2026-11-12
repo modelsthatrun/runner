@@ -160,11 +160,14 @@ def cmd_whoami(argv: list[str]) -> int:
 
 
 def records(model_dir: Path) -> list[tuple[str, Path]]:
-    """(size, record path) for each run record of a model: runs/<size>.json."""
+    """(size, record path) for each run record of a model on the default runtime: runs/<size>.json. Other runtimes'
+    records (runs/<size>.<runtime>.json) aren't accepted from the community yet. Sizes may hold dots (1.6b)."""
+    from .runtimes import DEFAULT, record_files
+
     runs = model_dir / "runs"
     if not runs.is_dir():
         return []
-    return [(f.name[: -len(".json")], f) for f in sorted(runs.glob("*.json")) if f.name.count(".") == 1]
+    return [(size, runs / name) for name, size, rt in record_files([f.name for f in runs.glob("*.json")]) if rt == DEFAULT]
 
 
 def sha256_text(path: Path) -> str:

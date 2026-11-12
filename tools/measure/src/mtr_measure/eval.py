@@ -90,7 +90,8 @@ def parse_args(argv: list[str]):
     p.add_argument("--limit", type=int, help="Score only the first N images, to try the adapter. Writes no record")
     p.add_argument("--model-id")
     p.add_argument("--gpu", type=int, default=0, help="NVML device index (default 0)")
-    p.add_argument("--runtime", default=trt.DEFAULT, choices=trt.RUNTIMES,
+    # CPU rows are matched against the GPU's output instead of scored (docs/protocol.md, "CPU rows").
+    p.add_argument("--runtime", default=trt.DEFAULT, choices=("pytorch-cuda", "tensorrt"),
                    help="tensorrt: score the engine `mtr check --runtime tensorrt` built, before it is timed")
     return p.parse_args(argv)
 

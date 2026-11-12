@@ -246,10 +246,117 @@ def fingerprint(model_dir: Path) -> dict:
 
 
 def check_path(model_dir: Path, size: str, runtime: str = "pytorch-cuda") -> Path:
-    """A passed check: .check/<size>.json, or .check/<size>.tensorrt.json for a TensorRT row."""
-    from .trt import suffix
+    """A passed check: .check/<size>.json, or .check/<size>.<runtime>.json for another runtime."""
+    from .runtimes import suffix
 
     return model_dir / ".check" / f"{size}{suffix(runtime)}.json"
+
+
+def reference_path(model_dir: Path, size: str) -> Path:
+    """The default runtime's prediction on the timing input, which CPU rows are compared with (match.py)."""
+    return model_dir / ".check" / f"{size}.reference.npz"
+
+
+def prediction_path(model_dir: Path, size: str, runtime: str) -> Path:
+    """A CPU runtime's prediction on the timing input."""
+    from .runtimes import suffix
+
+    return model_dir / ".check" / f"{size}{suffix(runtime)}.prediction.npz"
+
+
+def build_cpu(
+    *,
+    model: str,
+    size: str,
+    weights: list[dict],
+    runs: list[dict],
+    runtime: dict,
+    warmup: int,
+    measured: str,
+    machine: dict,
+    provenance: dict | None = None,
+    kind: str = "image",
+) -> dict:
+    """A CPU row's run record (schema/cpu-run-record.schema.json): latency like an image record's, and instead of VRAM
+    the peak resident memory of the worker, the highest of the runs. `runtime` is the record's runtime block."""
+    if not runs:
+        raise ValueError("no runs")
+    first = runs[0]["worker"]
+    summaries = []
+    for r in runs:
+        w = r["worker"]
+        times = w["times_ms"]
+        summaries.append({"median": round(statistics.median(times), 3), "p90": round(percentile(times, 90), 3),
+                          "ram_peak_mib": round(w["memory"].get("VmHWM", 0) / 1024)})
+    gen = {"generation": first["generation"]} if kind == "generation" else {}
+    if gen and any(r["worker"]["generation"] != first["generation"] for r in runs):
+        raise ValueError("the runs made their images with different settings")
+    return {
+        "kind": kind,
+        "model": model,
+        "size": size,
+        "weights": weights,
+        "measurement": {
+            "runtime": runtime,
+            "precision": first["precision"],
+            "batch": 1,
+            "input": first["input"],
+            "latency_ms": {
+                "median": round(statistics.median(s["median"] for s in summaries), 3),
+                "p90": round(statistics.median(s["p90"] for s in summaries), 3),
+            },
+            "latency_scope": first["latency_scope"],
+            "ram_peak_mib": max(s["ram_peak_mib"] for s in summaries),
+            "iterations": {"warmup": warmup, "timed": len(first["times_ms"])},
+            "env": {**machine, "python": first["env"]["python"], "torch": first["env"]["torch"], "package": first["env"]["package"]},
+            "measured": measured,
+            "protocol": PROTOCOL_VERSION,
+            "runs": summaries,
+            **gen,
+        },
+        **({"provenance": provenance} if provenance else {}),
+    }
+
+
+def build_not_timed(
+    *,
+    model: str,
+    size: str,
+    weights: list[dict],
+    kind: str,
+    runtime: str,
+    version: str,
+    reason: str,
+    detail: str,
+    measured: str,
+    machine: dict,
+    env: dict | None = None,
+    input: str | None = None,
+    limit_s: float | None = None,
+    call_s: float | None = None,
+    provenance: dict | None = None,
+) -> dict:
+    """A CPU row with no number, and the tool's reason (over-limit, unsupported or precision)."""
+    not_timed: dict = {"reason": reason, "detail": detail}
+    if limit_s is not None:
+        not_timed["limit_s"] = limit_s
+    if call_s is not None:
+        not_timed["call_s"] = round(call_s, 1)
+    return {
+        "kind": kind,
+        "model": model,
+        "size": size,
+        "weights": weights,
+        "measurement": {
+            "runtime": {"name": runtime, "version": version},
+            "not_timed": not_timed,
+            **({"input": input} if input else {}),
+            "env": {**machine, **(env or {})},
+            "measured": measured,
+            "protocol": PROTOCOL_VERSION,
+        },
+        **({"provenance": provenance} if provenance else {}),
+    }
 
 
 # ModelsThatRun's record schemas, generated from the schema package its maintainers keep; never edited here.

@@ -653,7 +653,7 @@
                 },
                 "gpu_layers": {
                   "type": "string",
-                  "minLength": 1,
+                  "pattern": "^(\\d+)\\/\\1$",
                   "description": "Layers on the GPU, e.g. 29/29. All must be"
                 },
                 "server_args": {
