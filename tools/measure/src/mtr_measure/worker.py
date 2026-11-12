@@ -165,11 +165,15 @@ def run(spec: dict) -> dict:
     probed_ops = None
     warm_start = time.perf_counter()
     warmup_min_s = float(spec.get("warmup_min_s", 0))
+    # A PyTorch CPU row's second warm-up call runs under the precision probe. Not the first: a package may trace or
+    # compile its model on the first call (RF-DETR's TorchScript does), and tracing under the probe fails.
+    probe_at = 1 if cpu and runtime == "pytorch-cpu" else None
+    warmup = max(int(spec["warmup"]), 2) if probe_at is not None else int(spec["warmup"])
     i = 0
-    while i < spec["warmup"] or (i > 0 and time.perf_counter() - warm_start < warmup_min_s):
+    while i < warmup or (i > 0 and time.perf_counter() - warm_start < warmup_min_s):
         beat("warmup", i)
         try:
-            if cpu and i == 0 and runtime == "pytorch-cpu":
+            if i == probe_at:
                 out, half, probed_ops = half_precision_probe(lambda: a.predict(model, x))
             else:
                 out = a.predict(model, x)
@@ -182,6 +186,7 @@ def run(spec: dict) -> dict:
         sync()
         if i == 0:
             output = describe(out)
+        if i == probe_at:
             if half:
                 ops = ", ".join(f"{k} ({v})" for k, v in sorted(half.items(), key=lambda kv: -kv[1])[:6])
                 raise MeasureError("PRECISION", f"On the CPU the official code computed in half precision: {ops}. A CPU only emulates "

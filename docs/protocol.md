@@ -188,15 +188,15 @@ A CPU row is a checkpoint run with no GPU at all: the same official code, with t
 
 **How it runs.**
 - **The GPU is hidden.** The worker starts with `CUDA_VISIBLE_DEVICES` set to nothing and `MTR_DEVICE=cpu`. A worker that can still see a GPU fails, and so does a run any of whose processes appears on the GPU (`GPU_TOUCHED`).
-- **fp32 only.** It is the only precision every CPU runs natively, and the protocol doesn't time an emulation. The tool asks every adapter for fp32. The first warm-up call runs under a probe in PyTorch's dispatcher: if any operation produces an fp16 or bf16 tensor, as a package's own autocast does, the row gets no number (`PRECISION`). An ONNX file with fp16 or bf16 weights or inputs gets none either. A GGUF file's quantization stays as it is.
+- **fp32 only.** It is the only precision every CPU runs natively, and the protocol doesn't time an emulation. The tool asks every adapter for fp32. The second warm-up call runs under a probe in PyTorch's dispatcher (not the first, on which some packages trace or compile their model): if any operation produces an fp16 or bf16 tensor, as a package's own autocast does, the row gets no number (`PRECISION`). An ONNX file with fp16 or bf16 weights or inputs gets none either. A GGUF file's quantization stays as it is.
 - **Threads.** The physical cores, which is what PyTorch, ONNX Runtime and llama.cpp each default to. The tool sets torch's threads and llama.cpp's `-t` and `-tb`, leaves an official ONNX Runtime session at its default, and records the threads read back after the timed calls.
 - **Calls.** Three fresh processes and `MAX_SPREAD`, as for every row, with fewer calls:
 
   | Kind | Warm-up | Timed |
   |---|---|---|
   | image | 5 | 30 |
-  | image, when one call takes more than 10 s | 1 | 5 |
-  | text-to-image | 1 | 5 |
+  | image, when one call takes more than 10 s | 2 | 5 |
+  | text-to-image | 2 | 5 |
   | language model | 1 | 5 requests (512 + 256 tokens, 8K context) |
 
 - **Warm-up time.** Warm-up goes on until it has lasted at least `CPU_WARMUP_MIN_S` (60 s, provisional), so a desktop CPU's short boost above its sustained power limit is over before the timed calls start.

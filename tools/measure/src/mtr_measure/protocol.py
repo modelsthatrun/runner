@@ -25,17 +25,18 @@ CHECK_TIMED = 5
 # CPU rows (runtimes pytorch-cpu, onnxruntime-cpu and llamacpp-cpu, docs/protocol.md "CPU rows"): the same three
 # fresh processes and MAX_SPREAD, fewer calls, fp32 only, on CPU_THREADS threads (the physical cores, as PyTorch,
 # ONNX Runtime and llama.cpp each default to). A call takes 30-1000 times longer than on the GPU, so each run makes
-# CPU_WARMUP + CPU_TIMED calls, or the slow tier's when one call takes more than CPU_SLOW_CALL_S.
+# CPU_WARMUP + CPU_TIMED calls, or the slow tier's when one call takes more than CPU_SLOW_CALL_S. A PyTorch CPU row's
+# second warm-up call runs under the precision probe (worker.py), so every tier warms up at least twice.
 CPU_WARMUP = 5
 CPU_TIMED = 30
 CPU_SLOW_CALL_S = 10.0
-CPU_SLOW_WARMUP = 1
+CPU_SLOW_WARMUP = 2
 CPU_SLOW_TIMED = 5
-CPU_GEN_WARMUP = 1
+CPU_GEN_WARMUP = 2
 CPU_GEN_TIMED = 5
 CPU_LLM_WARMUP = 1
 CPU_LLM_TIMED = 5
-CPU_CHECK_WARMUP = 1
+CPU_CHECK_WARMUP = 2
 CPU_CHECK_TIMED = 2
 # The longest call a CPU row times. A checkpoint whose call runs past it gets a record that says so instead of a number.
 CPU_CALL_LIMIT_S = 300.0
