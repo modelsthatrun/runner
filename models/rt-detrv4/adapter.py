@@ -10,8 +10,14 @@ The checkout is pinned to the last main commit before pull request #20 (merged 2
 pull request stopped moving the encoder's fixed position embedding to the model's device, leaving
 it for an "inference wrapper" the repository doesn't have, so torch_inf.py fails on CUDA at the
 current main (checked 2026-10-27).
+
+Its ONNX Runtime row on the CPU follows the README's deployment steps: tools/deployment/export_onnx.py on the released
+checkpoint (`--check -c <config> -r model.pth`), then tools/inference/onnx_inf.py, which makes a default
+InferenceSession and letterboxes the image to 640x640 on a black canvas (resize_with_aspect_ratio). Its boxes are
+mapped back to the photo as its draw() does. That letterbox differs from torch_inf.py's 640x640 stretch.
 """
 
+import importlib.util
 import subprocess
 import sys
 from pathlib import Path
@@ -37,6 +43,8 @@ PRECISIONS = ["fp32"]
 INPUT = {s: "640x640" for s in SIZES}
 # The README's display threshold in tools/inference/torch_inf.py.
 THRESHOLD = 0.4
+# tools/inference/onnx_inf.py letterboxes to 640x640.
+ONNXRUNTIME = {"status": "runs-as-is", "input": "640x640"}
 
 
 def package_version():
@@ -114,7 +122,58 @@ def postprocess(m, raw, x):
 
 @torch.inference_mode()
 def predict(m, x):
+    if "sess" in m:
+        labels, boxes, scores = ort_call(m, x)
+        keep = scores > THRESHOLD
+        return labels[keep], boxes[keep], scores[keep]
     return postprocess(m, forward(m, preprocess(m, x)), x)
+
+
+def onnx_file(size, out):
+    """The README's export, run as it is on the released checkpoint. It writes the ONNX file next to the checkpoint it
+    is given, so it gets a link to the checkpoint in `out`."""
+    checkout()
+    ckpt = weight_files(size)[0]
+    if not ckpt.is_file():
+        load(size, "fp32")  # downloads it
+    link = Path(out) / ckpt.name
+    link.symlink_to(ckpt)
+    args = ["--check", "-c", f"configs/rtv4/rtv4_hgnetv2_{size}_coco.yml", "-r", ckpt.name]
+    subprocess.run([sys.executable, "tools/deployment/export_onnx.py", *args[:-1], str(link)], cwd=REPO, check=True)
+    return {"onnx": link.with_suffix(".onnx"), "exporter": f"RT-DETRs/RT-DETRv4@{COMMIT} tools/deployment/export_onnx.py", "args": args}
+
+
+def onnx_inf():
+    checkout()
+    spec = importlib.util.spec_from_file_location("rtv4_onnx_inf", REPO / "tools" / "inference" / "onnx_inf.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_onnx(size, onnx):
+    """The ONNX file in a session as tools/inference/onnx_inf.py's main() makes it: ort.InferenceSession(args.onnx)."""
+    checkout()
+    from engine.data.dataset.coco_dataset import mscoco_category2name, mscoco_label2category
+
+    inf = onnx_inf()
+    names = [mscoco_category2name[mscoco_label2category[i]] for i in range(80)]
+    return {"sess": inf.ort.InferenceSession(str(onnx)), "inf": inf, "names": names}
+
+
+def onnx_session(m):
+    return m["sess"]
+
+
+def ort_call(m, x):
+    # onnx_inf.py's process_image(): the letterboxed image and its own size into the session, then draw()'s mapping of
+    # the boxes back to the photo.
+    resized, ratio, pad_w, pad_h = m["inf"].resize_with_aspect_ratio(x, 640)
+    orig_size = torch.tensor([[resized.size[1], resized.size[0]]])
+    im_data = T.Compose([T.ToTensor()])(resized).unsqueeze(0)
+    labels, boxes, scores = m["sess"].run(output_names=None, input_feed={"images": im_data.numpy(), "orig_target_sizes": orig_size.numpy()})
+    boxes = (torch.from_numpy(boxes[0]) - torch.tensor([pad_w, pad_h, pad_w, pad_h])) / ratio
+    return torch.from_numpy(labels[0]), boxes, torch.from_numpy(scores[0])
 
 
 def weight_files(size):

@@ -16,3 +16,11 @@ package = false
 
 [tool.uv.sources]
 mtr-measure = { path = "../../tools/measure", editable = true }
+
+[dependency-groups]
+# ONNX Runtime rows on the CPU (docs/protocol.md, "CPU rows"), installed only for `--runtime onnxruntime-cpu`: the
+# extras the export notebook installs, lightly-train[onnx,onnxruntime,onnxslim].
+onnxruntime = [
+  "lightly-train[onnx,onnxruntime,onnxslim]==0.18.0",
+  "onnxruntime==1.31.1; python_version >= '3.11'",
+]
