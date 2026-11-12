@@ -241,7 +241,8 @@ def run(spec: dict) -> dict:
     if gen:
         result["generation"] = generation.recorded(x, generation.scheduler(a, model))
     if spec.get("mode") == "check":
-        result["checks"] = check_more(a, model, x, size, spec.get("task"), [Path(p) for p in spec["inputs"]], spec.get("prediction_out"), beat)
+        result["checks"] = check_more(a, model, x, size, spec.get("task"), [Path(p) for p in spec["inputs"]], spec.get("prediction_out"), beat,
+                                      spec.get("onnx_reference_out"))
     return result
 
 
@@ -270,7 +271,7 @@ def onnxruntime_version() -> str:
 
 
 def check_more(a: Any, model: Any, x: Any, size: str, task: str | None, inputs: list[Path] | None = None,
-               prediction_out: str | None = None, beat: Any = None) -> list[str]:
+               prediction_out: str | None = None, beat: Any = None, onnx_reference_out: str | None = None) -> list[str]:
     """What `mtr check` verifies beyond a working predict(). Raises on the first problem. `beat` marks the start of its own
     predict() call, so a CPU row's limit counts that call alone."""
     beat = beat or (lambda phase, n=0: None)
@@ -322,6 +323,13 @@ def check_more(a: Any, model: Any, x: Any, size: str, task: str | None, inputs: 
                 notes.append(f"prediction saved for the CPU rows' comparison: {Path(prediction_out).name}")
             except match.MatchError as e:
                 notes.append(f"prediction not saved: {e}")
+            if onnx_reference_out and callable(getattr(a, "predict_onnx_input", None)):
+                # The same model on the official ONNX code's input, so an ONNX Runtime row is compared on equal input.
+                beat("check")
+                onnx_pred = ad.to_prediction(a, model, x, a.predict_onnx_input(model, x), task)
+                match.save(onnx_pred, task, Path(onnx_reference_out))
+                notes.append(f"the same on the ONNX code's input: {type(onnx_pred).__name__} with {len(onnx_pred) if hasattr(onnx_pred, '__len__') else 1} item(s), "
+                             f"saved as {Path(onnx_reference_out).name}")
     else:
         notes.append("to_prediction(): not checked (the adapter declares no TASK and there was no --task)")
     return notes

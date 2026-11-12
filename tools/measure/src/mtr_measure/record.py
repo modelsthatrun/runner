@@ -257,6 +257,12 @@ def reference_path(model_dir: Path, size: str) -> Path:
     return model_dir / ".check" / f"{size}.reference.npz"
 
 
+def onnx_reference_path(model_dir: Path, size: str) -> Path:
+    """The default runtime's model on the official ONNX Runtime code's input, for a family whose ONNX code pre-processes
+    differently from its PyTorch code (the adapter's predict_onnx_input()). ONNX Runtime rows are compared with it."""
+    return model_dir / ".check" / f"{size}.reference-onnx.npz"
+
+
 def prediction_path(model_dir: Path, size: str, runtime: str) -> Path:
     """A CPU runtime's prediction on the timing input."""
     from .runtimes import suffix

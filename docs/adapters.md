@@ -94,6 +94,7 @@ def load_onnx(size: str, onnx: pathlib.Path) -> Model: ...    # the session as t
 def onnx_session(model: Model): ...                           # the onnxruntime.InferenceSession inside it
 ```
 
+- **`predict_onnx_input(model, x)`**, when the official ONNX code pre-processes differently from the PyTorch code (a letterbox where it stretches): the PyTorch model's call on the ONNX code's input, with its post-processing. The GPU check saves its output too, and the ONNX Runtime row is compared with that, on equal input. Without it, the row is compared with `predict()`'s output.
 - **`onnx_file()`** returns what `export_onnx()` returns. Without it, the tool uses `export_onnx()`, the TensorRT row's export, when the two rows share one.
 - **`predict()`** checks which model it got and runs the official ONNX inference code's pre-processing, session call and post-processing for the session.
 - **Its environment.** A dependency group named `onnxruntime` with `"onnxruntime==1.31.1; python_version >= '3.11'"` and what the export and inference code import. Adding it must leave every other locked package at its version.

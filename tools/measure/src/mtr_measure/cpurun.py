@@ -144,6 +144,11 @@ def match_result(model_dir: Path, size: str, runtime: str, kind: str, check_note
     from .runqueue import read_check
 
     ref = record.reference_path(model_dir, size)
+    # A family whose official ONNX code pre-processes differently (a letterbox where the PyTorch code stretches) also saves
+    # the PyTorch model's output on the ONNX code's input. Its ONNX Runtime row is compared with that, on equal input.
+    same_input = runtime == "onnxruntime-cpu" and record.onnx_reference_path(model_dir, size).is_file()
+    if same_input:
+        ref = record.onnx_reference_path(model_dir, size)
     got = record.prediction_path(model_dir, size, runtime)
     try:
         read_check(model_dir, size)  # the GPU check, current with this adapter and lock
@@ -157,7 +162,10 @@ def match_result(model_dir: Path, size: str, runtime: str, kind: str, check_note
         raise MeasureError("NOT_MATCHED", f"The CPU's output can't be compared with the GPU's: {e}") from e
     if not res["passed"]:
         raise MeasureError("NOT_MATCHED", f"The CPU's output on the timing input differs from the GPU's: {match.describe(res)}")
-    return {k: res[k] for k in ("type", "reference", "metrics", "tolerance")}
+    out = {k: res[k] for k in ("type", "reference", "metrics", "tolerance")}
+    if same_input:
+        out["metrics"] = {**out["metrics"], "same_preprocessing": 1.0}
+    return out
 
 
 def image_match(worker: dict, png: Path) -> dict | None:

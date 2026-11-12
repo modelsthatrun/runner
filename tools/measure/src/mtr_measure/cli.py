@@ -240,6 +240,9 @@ def cmd_check(argv: list[str], log: Log) -> int:
                 ref.unlink(missing_ok=True)
                 ref.with_suffix(".png").unlink(missing_ok=True)
                 spec["prediction_out"] = str(ref)
+                onnx_ref = record.onnx_reference_path(model_dir, args.size)
+                onnx_ref.unlink(missing_ok=True)
+                spec["onnx_reference_out"] = str(onnx_ref)
             module = "mtr_measure.worker"
             what = f"{warmup} warm-up and {timed} timed predict() calls"
         gpu = Gpu(args.gpu)

@@ -209,6 +209,7 @@ A CPU row is a checkpoint run with no GPU at all: the same official code, with t
 
 **Matched, not scored.** A CPU row is the same weights and the same official code in fp32, so it isn't scored on a benchmark. Instead `mtr check` compares its output on the task's timing input with the GPU row's:
 - The GPU check saves its prediction as `.check/<size>.reference.npz` (a language model's greedy answer as `.check/<size>.reference.json`). The CPU check saves its own and compares, so it never needs the GPU.
+- Where the official ONNX code pre-processes differently from the PyTorch code (D-FINE's and RT-DETRv4's letterbox), the GPU check also saves the PyTorch model's output on the ONNX code's input, and the ONNX Runtime row is compared with that: the check is of the computation, on equal input. The record's match says so (`same_preprocessing`).
 - Boxes, masks and keypoints match object by object (same label, IoU), mattes by mean difference, depth by correlation and relative error, a language model by its next token at eight points of the GPU's answer. `match.py` holds the tolerances, looser for ONNX Runtime, whose pre-processing may differ.
 - A text-to-image image can't be matched, because fp32 and fp16 draw other pixels: its check only refuses a blank image. Look at it.
 - The queue refuses a CPU row whose check didn't match (`NOT_MATCHED`). The record keeps the match in `runtime.match`.

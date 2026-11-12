@@ -131,6 +131,33 @@ def trt_call(m, x):
     return out["labels"][0].cpu(), out["boxes"][0].cpu(), out["scores"][0].cpu()
 
 
+def letterbox(image, size=640):
+    """tools/inference/onnx_inf.py's resize_with_aspect_ratio(), step for step. That module imports onnxruntime, which the
+    PyTorch row's environment doesn't have, so its few lines are repeated here for predict_onnx_input()."""
+    from PIL import Image
+
+    original_width, original_height = image.size
+    ratio = min(size / original_width, size / original_height)
+    new_width, new_height = int(original_width * ratio), int(original_height * ratio)
+    image = image.resize((new_width, new_height), Image.BILINEAR)
+    new_image = Image.new("RGB", (size, size))
+    new_image.paste(image, ((size - new_width) // 2, (size - new_height) // 2))
+    return new_image, ratio, (size - new_width) // 2, (size - new_height) // 2
+
+
+@torch.inference_mode()
+def predict_onnx_input(m, x):
+    """The PyTorch model on onnx_inf.py's input (its letterbox and size) with its mapping of the boxes back to the photo,
+    so the ONNX Runtime row's check compares the computation on equal input (mtr_measure/match.py)."""
+    resized, ratio, pad_w, pad_h = letterbox(x, 640)
+    orig = torch.tensor([[resized.size[1], resized.size[0]]], device=device())
+    labels, boxes, scores = m["net"](T.ToTensor()(resized).unsqueeze(0).to(device()), orig)
+    boxes = (boxes[0].cpu() - torch.tensor([pad_w, pad_h, pad_w, pad_h])) / ratio
+    labels, scores = labels[0].cpu(), scores[0].cpu()
+    keep = scores > THRESHOLD
+    return labels[keep], boxes[keep], scores[keep]
+
+
 def onnx_inf():
     checkout()
     spec = importlib.util.spec_from_file_location("dfine_onnx_inf", REPO / "tools" / "inference" / "onnx_inf.py")
