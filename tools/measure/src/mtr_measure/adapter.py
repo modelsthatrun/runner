@@ -267,8 +267,11 @@ def prepare_input(a: Any, paths: list[Path]) -> Any:
 def input_size(a: Any, size: str, x: Any, runtime: str | None = None) -> str:
     if kind(a) == "generation":
         return x.resolution
-    # An engine's input is fixed when it is exported, and may differ from the PyTorch row's (TENSORRT["input"]).
-    fixed = (getattr(a, "TENSORRT", None) or {}).get("input") if runtime == "tensorrt" else None
+    # An engine's input is fixed when it is exported, and may differ from the PyTorch row's (TENSORRT["input"]); the
+    # official ONNX Runtime code may feed another input too (ONNXRUNTIME["input"]).
+    fixed = None
+    if runtime in ("tensorrt", "onnxruntime-cpu"):
+        fixed = (getattr(a, "TENSORRT" if runtime == "tensorrt" else "ONNXRUNTIME", None) or {}).get("input")
     if isinstance(fixed, dict):
         fixed = fixed.get(size)
     value = fixed or (a.input_size(size, x) if hasattr(a, "input_size") else a.INPUT.get(size))

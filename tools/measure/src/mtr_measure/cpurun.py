@@ -221,6 +221,9 @@ def cmd_check(args, model_dir: Path, model_id: str, kind: str, log, finish, writ
                                     "rebuild": bool(getattr(args, "rebuild", False))}, log)
             spec["onnx"] = info["onnx"]
             base["runtime_info"] = info["runtime"]
+            base["onnx"] = info["onnx"]
+            ex = info["runtime"]["export"]
+            log(f"onnx: {info['onnx']} ({'kept' if info.get('reused') else 'exported'}), opset {ex['opset']}, sha256 {ex['onnx_sha256'][:12]}…")
         window = cpu.Window().start()
         time.sleep(1.0)
         log(f"cpu: {machine.cpu_model()}, {n} threads; {hostmem.available_mib()} MiB of memory free; "

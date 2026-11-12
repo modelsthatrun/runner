@@ -148,7 +148,10 @@ def run(spec: dict) -> dict:
         if runtime == "tensorrt":
             model = a.load_engine(size, Path(spec["engine"]))
         elif runtime == "onnxruntime-cpu":
+            from . import ort
+
             model = a.load_onnx(size, Path(spec["onnx"]))
+            ort.check_session(a.onnx_session(model))
         else:
             model = a.load(size, precision)
     except MeasureError:
@@ -248,8 +251,10 @@ def unsupported(a: Any, cpu: bool, e: BaseException) -> None:
 
 def threads_used(a: Any, model: Any, runtime: str) -> int:
     """The threads the computation ran on, read back after the timed calls: torch's, or the ONNX Runtime session's."""
-    if runtime == "onnxruntime-cpu" and hasattr(a, "onnx_threads"):
-        return int(a.onnx_threads(model))
+    if runtime == "onnxruntime-cpu":
+        from . import ort
+
+        return ort.check_session(a.onnx_session(model))
     import torch
 
     return int(torch.get_num_threads())
