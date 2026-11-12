@@ -13,6 +13,10 @@ For each request it records the time to the first streamed token (client side), 
 time, and the server's own prefill and decode rates (`timings`). All layers must sit on the GPU;
 if llama-server can't fit them at LLM_CONTEXT, the result is OOM. It stops the server before it
 exits, so the parent's second baseline sees the GPU free again.
+
+A CPU row (llamacpp-cpu, cpullm.py) runs the same binary with the GPU hidden and no device: no layer may sit on the
+GPU. Its check compares the next token the CPU predicts with the GPU check's greedy answer (reference_tokens), and
+the worker reports llama-server's peak memory, the mapped GGUF file included.
 Usage: python -m mtr_measure.llm <spec.json>
 """
 
@@ -78,6 +82,46 @@ def wait_ready(port: int, proc: subprocess.Popen, log_path: Path) -> None:
 def gpu_layers(log_path: Path) -> tuple[int, int] | None:
     found = re.findall(r"offloaded (\d+)/(\d+) layers to GPU", log_path.read_text(errors="replace"))
     return (int(found[-1][0]), int(found[-1][1])) if found else None
+
+
+def model_layers(log_path: Path) -> int | None:
+    """The layers llama.cpp counts for offloading: the model's n_layer, plus its output layer."""
+    found = re.findall(r"n_layer\s+=\s+(\d+)", log_path.read_text(errors="replace"))
+    return int(found[0]) + 1 if found else None
+
+
+def greedy_tokens(port: int, tokens: list[int], n: int) -> list[int]:
+    """The ids of n greedy tokens after the prompt: what a CPU row's check compares with."""
+    body = {"prompt": tokens, "n_predict": n, "ignore_eos": True, "temperature": 0, "top_k": 1, "cache_prompt": False,
+            "return_tokens": True}
+    with request(port, "/completion", body) as r:
+        out = json.loads(r.read())
+    ids = [int(t) for t in out.get("tokens") or []]
+    if len(ids) != n:
+        raise MeasureError("ENGINE", f"llama-server returned {len(ids)} token ids, not {n}")
+    return ids
+
+
+# Where a CPU row's check compares the next token: after the prompt and after every 32nd token of the GPU's answer.
+MATCH_POSITIONS = (0, 32, 64, 96, 128, 160, 192, 224)
+
+
+def next_token_match(port: int, tokens: list[int], reference: list[int]) -> dict:
+    """At each position, the CPU's most likely next token and its top 5, given the prompt and the GPU's answer so far."""
+    top1 = top5 = 0
+    for k in MATCH_POSITIONS:
+        body = {"prompt": tokens + reference[:k], "n_predict": 1, "temperature": 0, "top_k": 1, "n_probs": 5, "cache_prompt": True}
+        with request(port, "/completion", body) as r:
+            out = json.loads(r.read())
+        probs = (out.get("completion_probabilities") or [{}])[0]
+        top = [int(t["id"]) for t in probs.get("top_logprobs") or probs.get("top_probs") or []]
+        if not top:
+            raise MeasureError("ENGINE", "llama-server returned no token probabilities")
+        top1 += top[0] == reference[k]
+        top5 += reference[k] in top[:5]
+    n = len(MATCH_POSITIONS)
+    return {"type": "tokens", "reference": "pytorch-cuda", "metrics": {"positions": float(n), "top1_agree": round(top1 / n, 4),
+            "top5_agree": round(top5 / n, 4)}, "tolerance": {"top1_agree": 0.875, "top5_agree": 1.0}}
 
 
 def prompt_tokens(port: int, n: int) -> list[int]:
@@ -157,25 +201,50 @@ def run(spec: dict) -> dict:
         log.write("$ " + " ".join(cmd) + "\n")
         log.flush()
         proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)
+    cpu = bool(spec.get("cpu"))
+    beat = Heartbeat(spec.get("heartbeat"))
+    extra: dict = {}
     try:
+        beat("load")
         wait_ready(port, proc, log_path)
         load_s = time.perf_counter() - t
         layers = gpu_layers(log_path)
-        if layers and layers[0] < layers[1]:
+        if cpu:
+            if layers and layers[0] > 0:
+                raise MeasureError("GPU_TOUCHED", f"llama-server put {layers[0]} of {layers[1]} layers on the GPU in a CPU row")
+            total = model_layers(log_path)
+            layers = (0, total) if total else None
+        elif layers and layers[0] < layers[1]:
             raise MeasureError("OOM", f"Only {layers[0]} of {layers[1]} layers fit on the GPU at the protocol's context")
         tokens = prompt_tokens(port, spec["prompt_tokens"])
+        if spec.get("reference_out"):
+            # The GPU check's greedy answer, which a CPU row's check compares with.
+            beat("check")
+            Path(spec["reference_out"]).write_text(json.dumps({"prompt": tokens, "tokens": greedy_tokens(port, tokens, spec["gen_tokens"])}))
+        if spec.get("reference_in"):
+            ref = json.loads(Path(spec["reference_in"]).read_text())
+            if ref["prompt"] != tokens:
+                raise MeasureError("NOT_MATCHED", "The GPU check's prompt tokens differ from this run's")
+            beat("check")
+            extra["match"] = next_token_match(port, tokens, ref["tokens"])
         sample = ""
         for i in range(spec["warmup"]):
+            beat("warmup", i)
             out = complete(port, tokens, spec["gen_tokens"])
             if i == 0:
                 sample = out["text"][:200]
         requests = []
-        for _ in range(spec["timed"]):
+        for n in range(spec["timed"]):
+            beat("timed", n)
             out = complete(port, tokens, spec["gen_tokens"])
             out.pop("text")
             requests.append(out)
         if proc.poll() is not None:
             raise server_failure(log_path)
+        if cpu:
+            from .hostmem import proc_status
+
+            extra["memory"] = proc_status(proc.pid)
     finally:
         proc.terminate()
         try:
@@ -189,7 +258,19 @@ def run(spec: dict) -> dict:
         "requests": requests,
         "sample": sample,
         "python": platform.python_version(),
+        **extra,
     }
+
+
+class Heartbeat:
+    def __init__(self, path: str | None):
+        self.path = Path(path) if path else None
+
+    def __call__(self, phase: str, n: int = 0) -> None:
+        if self.path:
+            tmp = self.path.with_suffix(".tmp")
+            tmp.write_text(json.dumps({"phase": phase, "call": n, "started": time.time()}))
+            tmp.replace(self.path)
 
 
 def main() -> int:

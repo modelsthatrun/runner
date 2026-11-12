@@ -318,6 +318,62 @@ def build_cpu(
     }
 
 
+def build_cpu_llm(
+    *,
+    model: str,
+    size: str,
+    weights: list[dict],
+    runs: list[dict],
+    runtime: dict,
+    quant: str,
+    engine: dict,
+    server_args: list[str],
+    warmup: int,
+    measured: str,
+    machine: dict,
+    provenance: dict | None = None,
+) -> dict:
+    """A language model's CPU row (schema/cpu-run-record.schema.json): the GPU row's numbers, with llama-server's peak
+    memory instead of VRAM."""
+    s = [summarize_llm_run(r["worker"], 0, 0) for r in runs]
+    ram = [round(r["worker"]["memory"].get("VmHWM", 0) / 1024) for r in runs]
+    first = runs[0]["worker"]
+
+    def med(k: str, nd: int) -> float:
+        return round(statistics.median(x[k] for x in s), nd)
+
+    return {
+        "kind": "llm",
+        "model": model,
+        "size": size,
+        "weights": weights,
+        "measurement": {
+            "runtime": runtime,
+            "engine": engine,
+            "quant": quant,
+            "batch": 1,
+            "context": int(server_args[server_args.index("-c") + 1]),
+            "prompt_tokens": s[0]["prompt_tokens"],
+            "prompt_sha256": sha256_file(Path(__file__).with_name("llm_prompt.txt")),
+            "gen_tokens": first["requests"][0]["predicted_n"],
+            "ttft_ms": {"median": med("ttft_ms", 2), "p90": med("ttft_p90_ms", 2)},
+            "e2e_ms": {"median": med("e2e_ms", 1), "p90": med("e2e_p90_ms", 1)},
+            "prefill_tps": med("prefill_tps", 1),
+            "decode_tps": med("decode_tps", 2),
+            "ram_peak_mib": max(ram),
+            "gpu_layers": first["gpu_layers"],
+            "server_args": server_args,
+            "iterations": {"warmup": warmup, "timed": len(first["requests"])},
+            "env": {**machine, "python": first["python"]},
+            "measured": measured,
+            "protocol": PROTOCOL_VERSION,
+            "runs": [{"ttft_ms": x["ttft_ms"], "prefill_tps": x["prefill_tps"], "decode_tps": x["decode_tps"], "ram_peak_mib": r}
+                     for x, r in zip(s, ram)],
+        },
+        **({"provenance": provenance} if provenance else {}),
+    }
+
+
 def build_not_timed(
     *,
     model: str,

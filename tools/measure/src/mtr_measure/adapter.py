@@ -93,6 +93,8 @@ LLM_PROTOCOL_FLAGS = {
     "-b", "--batch-size", "-ub", "--ubatch-size", "-fa", "--flash-attn", "-ctk", "--cache-type-k",
     "-ctv", "--cache-type-v", "-t", "--threads", "-fit", "--fit", "-m", "--model", "-hf", "--hf-repo",
     "--no-mmap", "--mlock", "-lv", "--verbosity", "--log-verbosity", "--reasoning-budget", "-sm", "--split-mode", "-ts", "--tensor-split", "--n-cpu-moe", "-cmoe", "--cpu-moe",
+    "-dev", "--device", "-tb", "--threads-batch", "--op-offload", "--no-op-offload", "--numa", "--poll", "-C", "--cpu-mask",
+    "-Cr", "--cpu-range", "-Cb", "--cpu-mask-batch", "-Crb", "--cpu-range-batch", "--prio", "--prio-batch",
 }
 
 

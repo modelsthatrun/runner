@@ -89,6 +89,10 @@ LLM_TIMED = 10
 LLM_SERVER_ARGS = ["-c", str(LLM_CONTEXT), "-np", "1", "-ngl", "999", "--fit", "off", "--no-webui", "-lv", "4"]
 LLM_CHECK_WARMUP = 1
 LLM_CHECK_TIMED = 2
+# A language model's CPU row (llamacpp-cpu): the same binary, the GPU hidden and no device (-dev none), so no layer and
+# no prompt batch reaches it; -ngl 0 alone would still send a long prompt's batches to the GPU. The threads (-t, -tb)
+# are CPU_THREADS', added when the server starts.
+LLM_CPU_SERVER_ARGS = ["-c", str(LLM_CONTEXT), "-np", "1", "-ngl", "0", "-dev", "none", "--fit", "off", "--no-webui", "-lv", "4"]
 
 # Language-model accuracy: lm-evaluation-harness (tools/measure/lmeval/) against the same
 # llama-server build, through its chat endpoint with the model's own chat template. Only generative

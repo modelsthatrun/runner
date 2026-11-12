@@ -220,6 +220,10 @@ def cmd_check(argv: list[str], log: Log) -> int:
 
             a = llmcli.load(model_dir, args.size)
             spec, weights, binary = llmcli.spec(a, model_id, args.size, record.check_path(model_dir, args.size).parent, check=True, say=log, gpu=args.gpu)
+            # The GPU's greedy answer to the timing prompt, which the CPU row's check compares with (cpullm.py).
+            ref = record.check_path(model_dir, args.size).with_name(f"{args.size}.reference.json")
+            ref.unlink(missing_ok=True)
+            spec["reference_out"] = str(ref)
             module = "mtr_measure.llm"
             what = f"{spec['warmup']} warm-up and {spec['timed']} timed requests of {spec['prompt_tokens']} + {spec['gen_tokens']} tokens"
         else:
