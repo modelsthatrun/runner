@@ -18,6 +18,7 @@ import torch
 from transformers import AutoModelForZeroShotObjectDetection, AutoProcessor
 from transformers.image_transforms import get_size_with_aspect_ratio
 
+from mtr_measure import device
 from mtr_measure.predictions import Boxes
 
 REPOS = {
@@ -70,13 +71,13 @@ def positive_map(processor, names, length):
 def load(size, precision):
     repo, revision = REPOS[size]
     processor = AutoProcessor.from_pretrained(repo, revision=revision)
-    model = AutoModelForZeroShotObjectDetection.from_pretrained(repo, revision=revision).to("cuda").eval()
-    pmap = positive_map(processor, COCO_NAMES, model.config.max_text_len).to("cuda")
+    model = AutoModelForZeroShotObjectDetection.from_pretrained(repo, revision=revision).to(device()).eval()
+    pmap = positive_map(processor, COCO_NAMES, model.config.max_text_len).to(device())
     return {"model": model, "processor": processor, "pmap": pmap}
 
 
 def forward(m, x):
-    inputs = m["processor"](images=x, text=[COCO_NAMES], return_tensors="pt").to("cuda")
+    inputs = m["processor"](images=x, text=[COCO_NAMES], return_tensors="pt").to(device())
     return inputs, m["model"](**inputs)
 
 
@@ -94,7 +95,7 @@ def eval_predict(m, x):
     scores, index = prob.flatten().topk(NUM_SELECT)
     labels = index % prob.shape[1]
     cx, cy, w, h = outputs.pred_boxes[0][index // prob.shape[1]].unbind(-1)
-    boxes = torch.stack([cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], -1) * torch.tensor([x.width, x.height] * 2, device="cuda")
+    boxes = torch.stack([cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], -1) * torch.tensor([x.width, x.height] * 2, device=device())
     return Boxes(boxes.cpu().numpy(), scores.cpu().numpy(), [COCO_NAMES[int(i)] for i in labels])
 
 

@@ -15,6 +15,7 @@ import numpy as np
 import torch
 from ben2 import BEN_Base
 
+from mtr_measure import device
 from mtr_measure.predictions import Alpha
 
 REPO, REVISION = "PramaLLC/BEN2", "e48a20765fb421d19dcdb0bf3cc61e802ca5ec8f"
@@ -32,7 +33,7 @@ def package_version():
 
 def load(size, precision):
     model = BEN_Base.from_pretrained(REPO, revision=REVISION)
-    return model.to("cuda").eval()
+    return model.to(device()).eval()
 
 
 @torch.no_grad()

@@ -14,6 +14,7 @@ import numpy as np
 import torch
 from moge.model.v2 import MoGeModel
 
+from mtr_measure import device
 from mtr_measure.predictions import Depth
 
 REPOS = {
@@ -44,14 +45,14 @@ def input_size(size, image):
 
 
 def load(size, precision):
-    model = MoGeModel.from_pretrained(weight_files(size)[0]).to("cuda").eval()
+    model = MoGeModel.from_pretrained(weight_files(size)[0]).to(device()).eval()
     _tokens_range[size] = model.num_tokens_range
     return {"model": model, "fp16": precision == "fp16"}
 
 
 @torch.no_grad()
 def predict(m, x):
-    image = torch.tensor(np.asarray(x) / 255, dtype=torch.float32, device="cuda").permute(2, 0, 1)
+    image = torch.tensor(np.asarray(x) / 255, dtype=torch.float32, device=device()).permute(2, 0, 1)
     return m["model"].infer(image, use_fp16=m["fp16"])
 
 

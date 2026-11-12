@@ -13,6 +13,8 @@ from pathlib import Path
 import torch
 from huggingface_hub import hf_hub_download
 
+from mtr_measure import device
+
 KIND = "generation"
 TASK = "text-to-image"
 SIZES = ["turbo", "base"]
@@ -38,7 +40,7 @@ def load(size: str, precision: str):
     repo, revision = REPOS[size]
     pipe = ZImagePipeline.from_pretrained(repo, revision=revision, torch_dtype=DTYPES[precision], low_cpu_mem_usage=False)
     pipe.extra = EXTRA[size]
-    return pipe.to("cuda")
+    return pipe.to(device())
 
 
 @torch.inference_mode()

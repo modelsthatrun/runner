@@ -16,7 +16,7 @@ from pathlib import Path
 
 import torch
 
-from mtr_measure import weights_dir
+from mtr_measure import device, weights_dir
 from mtr_measure.predictions import Keypoints
 
 WEIGHTS = weights_dir("yolo26-pose")
@@ -33,6 +33,8 @@ SIZES = ["n", "s", "m", "l", "x"]
 PRECISIONS = ["fp16", "fp32"]
 PACKAGE = "ultralytics"
 IMGSZ = 640
+# Ultralytics names the first GPU 0 and the CPU "cpu".
+DEVICE = 0 if device() == "cuda" else "cpu"
 STRIDE = 32
 
 
@@ -46,13 +48,13 @@ def input_size(size, image):
 
 def load(size, precision):
     model = YOLO(str(weight_files(size)[0]))
-    model.to("cuda")
+    model.to(device())
     return {"model": model, "quantize": 16 if precision == "fp16" else 32}
 
 
 @torch.inference_mode()
 def predict(m, x):
-    return m["model"].predict(x, imgsz=IMGSZ, quantize=m["quantize"], device=0, verbose=False)[0]
+    return m["model"].predict(x, imgsz=IMGSZ, quantize=m["quantize"], device=DEVICE, verbose=False)[0]
 
 
 def phase_times(m, out):

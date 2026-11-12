@@ -12,6 +12,8 @@ from pathlib import Path
 import torch
 from huggingface_hub import hf_hub_download
 
+from mtr_measure import device
+
 KIND = "generation"
 TASK = "text-to-image"
 SIZES = ["4step"]
@@ -38,9 +40,9 @@ def load(size: str, precision: str):
 
     dtype = DTYPES[precision]
     config = UNet2DConditionModel.load_config(BASE, subfolder="unet", revision=BASE_REVISION)
-    unet = UNet2DConditionModel.from_config(config).to("cuda", dtype)
-    unet.load_state_dict(load_file(hf_hub_download(REPO, UNETS[size], revision=REVISION), device="cuda"))
-    pipe = StableDiffusionXLPipeline.from_pretrained(BASE, revision=BASE_REVISION, unet=unet, torch_dtype=dtype, variant="fp16").to("cuda")
+    unet = UNet2DConditionModel.from_config(config).to(device(), dtype)
+    unet.load_state_dict(load_file(hf_hub_download(REPO, UNETS[size], revision=REVISION), device=device()))
+    pipe = StableDiffusionXLPipeline.from_pretrained(BASE, revision=BASE_REVISION, unet=unet, torch_dtype=dtype, variant="fp16").to(device())
     pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config, timestep_spacing="trailing")
     return pipe
 

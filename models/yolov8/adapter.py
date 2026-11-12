@@ -15,7 +15,7 @@ from pathlib import Path
 
 import torch
 
-from mtr_measure import weights_dir
+from mtr_measure import device, weights_dir
 from mtr_measure.predictions import Boxes
 
 WEIGHTS = weights_dir("yolov8")
@@ -34,6 +34,8 @@ SIZES = ["n", "s", "m", "l", "x"]
 PRECISIONS = ["fp16", "fp32"]
 PACKAGE = "ultralytics"
 IMGSZ = 640
+# Ultralytics names the first GPU 0 and the CPU "cpu".
+DEVICE = 0 if device() == "cuda" else "cpu"
 STRIDE = 32
 
 
@@ -47,13 +49,13 @@ def input_size(size, image):
 
 def load(size, precision):
     model = YOLO(str(weight_files(size)[0]))
-    model.to("cuda")
+    model.to(device())
     return {"model": model, "quantize": 16 if precision == "fp16" else 32}
 
 
 @torch.inference_mode()
 def predict(m, x):
-    return m["model"].predict(x, imgsz=IMGSZ, quantize=m["quantize"], device=0, verbose=False)[0]
+    return m["model"].predict(x, imgsz=IMGSZ, quantize=m["quantize"], device=DEVICE, verbose=False)[0]
 
 
 def phase_times(m, out):
@@ -77,7 +79,7 @@ class ValNMSPredictor(DetectionPredictor):
 @torch.inference_mode()
 def eval_predict(m, x):
     # model.val() on COCO: conf 0.001, up to 300 detections, multi-label NMS (DetectionValidator.postprocess).
-    return m["model"].predict(x, imgsz=IMGSZ, quantize=m["quantize"], device=0, conf=0.001, max_det=300, verbose=False,
+    return m["model"].predict(x, imgsz=IMGSZ, quantize=m["quantize"], device=DEVICE, conf=0.001, max_det=300, verbose=False,
                               predictor=ValNMSPredictor)[0]
 
 

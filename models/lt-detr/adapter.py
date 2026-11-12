@@ -24,7 +24,7 @@ from pathlib import Path
 
 import torch
 
-from mtr_measure import weights_dir
+from mtr_measure import device, weights_dir
 from mtr_measure.predictions import Boxes
 
 # lightly_train downloads named checkpoints into LIGHTLY_TRAIN_MODEL_CACHE_DIR (default
@@ -51,13 +51,13 @@ DISPLAY_THRESHOLD = 0.5
 
 
 def load(size, precision):
-    model = lightly_train.load_model(NAMES[size], device="cuda")
+    model = lightly_train.load_model(NAMES[size], device=device())
     model.deploy()  # predict() would do this on its first call
     return {"model": model, "fp16": precision == "fp16"}
 
 
 def _predict(m, x, threshold):
-    with torch.autocast("cuda", dtype=torch.float16, enabled=m["fp16"]):
+    with torch.autocast(device(), dtype=torch.float16, enabled=m["fp16"]):
         return m["model"].predict(x, threshold=threshold)
 
 

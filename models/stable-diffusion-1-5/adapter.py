@@ -12,6 +12,8 @@ from pathlib import Path
 import torch
 from huggingface_hub import hf_hub_download
 
+from mtr_measure import device
+
 KIND = "generation"
 TASK = "text-to-image"
 SIZES = ["v1-5"]
@@ -33,7 +35,7 @@ def load(size: str, precision: str):
     from diffusers import StableDiffusionPipeline
 
     pipe = StableDiffusionPipeline.from_pretrained(REPO, revision=REVISION, torch_dtype=DTYPES[precision])
-    return pipe.to("cuda")
+    return pipe.to(device())
 
 
 @torch.inference_mode()

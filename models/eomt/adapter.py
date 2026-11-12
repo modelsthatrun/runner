@@ -17,6 +17,7 @@ import torch
 import torch.nn.functional as F
 from transformers import AutoImageProcessor, EomtForUniversalSegmentation
 
+from mtr_measure import device
 from mtr_measure.predictions import Masks
 
 REPOS = {
@@ -36,13 +37,13 @@ def load(size, precision):
     torch.set_float32_matmul_precision("medium")
     repo, revision = REPOS[size]
     processor = AutoImageProcessor.from_pretrained(repo, revision=revision)
-    model = EomtForUniversalSegmentation.from_pretrained(repo, revision=revision).to("cuda").eval()
+    model = EomtForUniversalSegmentation.from_pretrained(repo, revision=revision).to(device()).eval()
     return {"model": model, "processor": processor, "fp16": precision == "fp16", "names": model.config.id2label}
 
 
 def forward(m, x):
-    inputs = m["processor"](images=x, return_tensors="pt").to("cuda")
-    with torch.autocast("cuda", dtype=torch.float16, enabled=m["fp16"]):
+    inputs = m["processor"](images=x, return_tensors="pt").to(device())
+    with torch.autocast(device(), dtype=torch.float16, enabled=m["fp16"]):
         return m["model"](**inputs)
 
 

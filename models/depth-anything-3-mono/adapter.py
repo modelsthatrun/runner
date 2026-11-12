@@ -17,6 +17,7 @@ import torch.nn.functional as F
 from depth_anything_3.api import DepthAnything3
 from depth_anything_3.utils.io.input_processor import InputProcessor
 
+from mtr_measure import device
 from mtr_measure.predictions import Depth
 
 COMMIT = "3d835ec1a5802d64a8b8b15f817a1ab54809bfe4"
@@ -40,7 +41,7 @@ def input_size(size, image):
 
 def load(size, precision):
     repo, revision = REPOS[size]
-    return DepthAnything3.from_pretrained(repo, revision=revision).to("cuda").eval()
+    return DepthAnything3.from_pretrained(repo, revision=revision).to(device()).eval()
 
 
 def predict(model, x):
