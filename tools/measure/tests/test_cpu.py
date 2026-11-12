@@ -257,3 +257,66 @@ def test_adapters_put_the_model_on_the_tools_device():
                 if isinstance(node, ast.Constant) and node.value in ("cuda", "cuda:0"):
                     found.append(f"{f.parent.name}:{fn.name}:{node.lineno}")
     assert found == []
+
+
+# --- rows without a number -----------------------------------------------------------------------
+
+
+def test_the_parent_stops_a_call_past_the_limit(tmp_path, monkeypatch):
+    (tmp_path / "fake_slow.py").write_text(
+        "import json, sys, time\nfrom pathlib import Path\n"
+        "spec = json.loads(Path(sys.argv[1]).read_text())\n"
+        "Path(spec['heartbeat']).write_text(json.dumps({'weights': ['w.pth'], 'phase': 'timed', 'call': 0, 'started': time.time()}))\n"
+        "time.sleep(60)\n"
+    )
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path))
+    started = datetime.now()
+    with pytest.raises(cpurun.OverLimit) as e:
+        cpurun.spawn({}, "fake_slow", None, print, limit_s=0.5)
+    assert e.value.code == "OVER_LIMIT" and e.value.call_s >= 0.5 and e.value.beat["weights"] == ["w.pth"]
+    assert (datetime.now() - started).total_seconds() < 20
+
+
+@pytest.mark.parametrize("failure", ["over-limit", "unsupported", "precision"])
+def test_a_row_without_a_number_goes_from_check_to_queue_to_record(repo, capsys, monkeypatch, failure):
+    model = repo / "models" / "fake-det"
+    weights = repo / "w.pth"
+    weights.write_bytes(b"weights")
+    jpg = str(repo / "timing.jpg")
+
+    def spawn(spec, module, gpu, log, limit_s=None):
+        if failure == "over-limit":
+            raise cpurun.OverLimit(312.0, {"weights": [str(weights)], "phase": "timed"})
+        code = {"unsupported": "CPU_UNSUPPORTED", "precision": "PRECISION"}[failure]
+        raise cpurun.WorkerFailed({"ok": False, "code": code, "error": f"{failure}: what the worker saw", "weights": [str(weights)]})
+
+    monkeypatch.setattr(cpurun, "spawn", spawn)
+    monkeypatch.setattr(cpurun, "BASELINE_S", 0)
+    monkeypatch.setattr(cpurun.cpu.Window, "others", lambda self: 0.0)
+    monkeypatch.setattr(cpurun, "open_gpu", lambda index: None)
+    cli.main(["check", str(model), "--size", "s", "--runtime", "pytorch-cpu", "--input", jpg])
+    check = json.loads(record.check_path(model, "s", "pytorch-cpu").read_text())
+    assert check.get("over_limit") if failure == "over-limit" else check["not_timed"]["reason"] == failure
+    assert cli.main(["queue", "add", str(model), "--size", "s", "--runtime", "pytorch-cpu", "--input", jpg]) == 0
+    capsys.readouterr()
+
+    assert cli.main(["run", str(model), "--size", "s", "--runtime", "pytorch-cpu", "--input", jpg]) == 0
+    rec = json.loads((model / "runs" / "s.pytorch-cpu.json").read_text())
+    assert record.validate(rec, "cpu-run-record") == []
+    assert rec["measurement"]["not_timed"]["reason"] == failure
+    assert rec["weights"][0]["sha256"] == record.sha256_file(weights)
+    assert not (model / "runs" / "s.pytorch-cpu.times.json").exists()
+    if failure == "over-limit":
+        assert rec["measurement"]["not_timed"]["limit_s"] == protocol.CPU_CALL_LIMIT_S and rec["measurement"]["not_timed"]["call_s"] == 312.0
+
+
+def test_a_busy_machine_never_records_a_row_as_over_the_limit(repo, capsys, monkeypatch):
+    model = repo / "models" / "fake-det"
+    write_check(model, runtime="pytorch-cpu", over_limit={"call_s": 310.0}, weight_files=[])
+    monkeypatch.setattr(cpurun, "spawn", lambda *a, **k: (_ for _ in ()).throw(cpurun.OverLimit(320.0, {"weights": []})))
+    monkeypatch.setattr(cpurun, "BASELINE_S", 0)
+    monkeypatch.setattr(cpurun, "open_gpu", lambda index: None)
+    others = iter([0.01, 0.30])  # quiet before the run, busy during it
+    monkeypatch.setattr(cpurun.cpu.Window, "others", lambda self: next(others))
+    assert cli.main(["run", str(model), "--size", "s", "--runtime", "pytorch-cpu", "--input", str(repo / "timing.jpg")]) == errors.exit_code("CPU_BUSY")
+    assert not (model / "runs" / "s.pytorch-cpu.json").exists()

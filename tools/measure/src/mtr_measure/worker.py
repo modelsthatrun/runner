@@ -236,7 +236,7 @@ def run(spec: dict) -> dict:
     if gen:
         result["generation"] = generation.recorded(x, generation.scheduler(a, model))
     if spec.get("mode") == "check":
-        result["checks"] = check_more(a, model, x, size, spec.get("task"), [Path(p) for p in spec["inputs"]], spec.get("prediction_out"))
+        result["checks"] = check_more(a, model, x, size, spec.get("task"), [Path(p) for p in spec["inputs"]], spec.get("prediction_out"), beat)
     return result
 
 
@@ -265,8 +265,10 @@ def onnxruntime_version() -> str:
 
 
 def check_more(a: Any, model: Any, x: Any, size: str, task: str | None, inputs: list[Path] | None = None,
-               prediction_out: str | None = None) -> list[str]:
-    """What `mtr check` verifies beyond a working predict(). Raises on the first problem."""
+               prediction_out: str | None = None, beat: Any = None) -> list[str]:
+    """What `mtr check` verifies beyond a working predict(). Raises on the first problem. `beat` marks the start of its own
+    predict() call, so a CPU row's limit counts that call alone."""
+    beat = beat or (lambda phase, n=0: None)
     notes = []
     missing = [str(p) for p in a.weight_files(size) if not Path(p).is_file()]
     if missing:
@@ -277,6 +279,7 @@ def check_more(a: Any, model: Any, x: Any, size: str, task: str | None, inputs: 
     if ad.kind(a) == "generation":
         from . import generation
 
+        beat("check")
         img = generation.check_image(a.predict(model, x), x)
         notes.append(f"predict(): a {img.size[0]}x{img.size[1]} image, {x.steps} steps at guidance {x.guidance:g}, seed {x.seed} on {x.generator}")
         if prediction_out:
@@ -288,6 +291,7 @@ def check_more(a: Any, model: Any, x: Any, size: str, task: str | None, inputs: 
         from .predictions import PredictionError
 
         try:
+            beat("check")
             pred = ad.to_prediction(a, model, x, a.predict(model, x), task)
         except PredictionError as e:
             raise MeasureError("ADAPTER_RUNTIME", f"to_prediction() on predict()'s output: {e}") from e

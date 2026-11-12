@@ -156,6 +156,9 @@ def cmd_run(args, model_dir: Path, model_id: str, log, finish, out: Path, failed
     finally:
         if gpu is not None:
             gpu.close()
+    if not m:
+        return finish(log, failed_log, "NOT_MATCHED", "Every request ran within the limit this time, but the check never matched the GPU's "
+                                                      "answer. Run `mtr check --runtime llamacpp-cpu` again on a quiet machine", warnings=warnings)
     weights = record.weight_entries(weight_paths)
     engine = llmcli.engine.describe(binary)
     rt = {"name": runtime, "version": engine["build"], "status": "runs-as-is", "threads": spec["threads"], "match": m}

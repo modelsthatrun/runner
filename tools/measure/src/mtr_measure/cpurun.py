@@ -180,7 +180,8 @@ def image_match(worker: dict, png: Path) -> dict | None:
 def require_ready(model_dir: Path, size: str, runtime: str, check: dict) -> dict | None:
     """What a queued or timed CPU row needs from its check: a match with the GPU, or a reason for no number. Returns
     the match (None for a not-timed check)."""
-    if check.get("not_timed"):
+    if check.get("not_timed") or check.get("over_limit"):
+        # The check's finding is the row's result, which a quiet run confirms (cmd_run): no output to match.
         return None
     m = check.get("match") or match_result(model_dir, size, runtime, check.get("kind", "image"), {})
     if not m:
@@ -434,6 +435,12 @@ def cmd_run(args, model_dir: Path, model_id: str, kind: str, log, finish) -> int
         if gpu is not None:
             gpu.close()
 
+    if not m and kind != "generation":
+        # The check stopped a call past the limit, and this quiet run didn't: the row has a number, but no match yet.
+        return finish(log, failed_log, "NOT_MATCHED", "Every call ran within the limit this time, but the check never matched the GPU's "
+                                                      f"output. Run `mtr check --runtime {runtime}` again on a quiet machine", warnings=warnings)
+    if not m:
+        return finish(log, failed_log, "NOT_MATCHED", f"No image was checked for this row. Run `mtr check --runtime {runtime}` again", warnings=warnings)
     worker = runs[-1]["worker"]
     try:
         weights = record.weight_entries([Path(p) for p in worker["weights"]])
