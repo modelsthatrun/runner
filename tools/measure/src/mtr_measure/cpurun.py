@@ -29,6 +29,7 @@ from pathlib import Path
 from . import adapter as ad
 from . import checks, cpu, hostmem, machine, protocol, record, runtimes
 from .errors import MeasureError
+from .ort import PrepareFailed
 
 # The not-timed reasons a check passes on to the run, which records them (and the schema's names for them).
 NOT_TIMED = {"CPU_UNSUPPORTED": "unsupported", "PRECISION": "precision", "OVER_LIMIT": "over-limit"}
@@ -242,10 +243,11 @@ def cmd_check(args, model_dir: Path, model_id: str, kind: str, log, finish, writ
         log(f"wrote {path}. A quiet `mtr run --runtime {runtime}` confirms it and records that this checkpoint isn't timed on a CPU")
         return finish(log, log_path, "OK", f"{model_id} / {args.size} on {runtime}: one call ran past {protocol.CPU_CALL_LIMIT_S:.0f} s",
                       {"check": str(path), "over_limit": True}, [str(e)])
-    except WorkerFailed as e:
+    except (WorkerFailed, PrepareFailed) as e:
         log(f"FAILED: {e}")
         if e.code in ("CPU_UNSUPPORTED", "PRECISION"):
-            check = {**base, "not_timed": {"code": e.code, "reason": NOT_TIMED[e.code], "detail": str(e)}, "weight_files": e.worker.get("weights", [])}
+            files = e.worker.get("weights", []) if isinstance(e, WorkerFailed) else e.weights
+            check = {**base, "not_timed": {"code": e.code, "reason": NOT_TIMED[e.code], "detail": str(e)}, "weight_files": files}
             path = write_check(model_dir, args.size, check, runtime, ok=False)
             log(f"wrote {path}. `mtr run --runtime {runtime}` records why this row has no number")
         return finish(log, log_path, e.code, str(e))
@@ -359,10 +361,26 @@ def cmd_run(args, model_dir: Path, model_id: str, kind: str, log, finish) -> int
     facts = machine.cpu_facts()
     spec = {"adapter": str(model_dir / "adapter.py"), "size": args.size, "inputs": [str(f) for f in inputs], "warmup": warmup,
             "timed": timed, "runtime": runtime, "threads": n, "warmup_min_s": protocol.CPU_WARMUP_MIN_S}
+    if runtime == "onnxruntime-cpu" and check.get("not_timed"):
+        # Its ONNX file computes in half precision: a property of the file, which a run confirms by inspecting it again.
+        from . import ort
+
+        try:
+            ort.run_prepare({"adapter": str(model_dir / "adapter.py"), "size": args.size, "model": model_id}, log)
+        except PrepareFailed as e:
+            if e.code in NOT_TIMED:
+                return not_timed(args, model_dir, model_id, kind, runtime, e, check, facts, inputs, out, failed_log, dry, log, finish, warnings)
+            log(f"FAILED: {e}")
+            return finish(log, failed_log, e.code, str(e))
+        return finish(log, failed_log, "NOT_CHECKED", "The ONNX file no longer gives the check's result. Run `mtr check --runtime onnxruntime-cpu` again")
     if runtime == "onnxruntime-cpu":
         from . import ort
 
-        spec["onnx"] = ort.verify(check)
+        try:
+            spec["onnx"] = ort.verify(check)
+        except MeasureError as e:
+            log(f"FAILED: {e}")
+            return finish(log, failed_log, e.code, str(e))
     log(f"cpu: {facts['cpu']}, {facts['cpu_cores']} cores, {facts['cpu_threads']} logical CPUs, {n} threads, "
         f"{facts['ram_total_mib']} MiB of memory" + (f", sustained power limit {facts['cpu_power_limit_w']:g} W" if facts.get("cpu_power_limit_w") else ""))
     log(f"{protocol.RUNS} runs, each a fresh process: load, at least {warmup} warm-up calls and {protocol.CPU_WARMUP_MIN_S:.0f} s of them, "
@@ -485,17 +503,37 @@ def write(rec: dict, runs: list[dict], kind: str, spread: float, clean: bool, dr
     return finish(log, out.with_suffix(".log"), "OK", f"{rec['model']} / {rec['size']}: {headline}", outputs, warnings)
 
 
+def runtime_version(runtime: str) -> str:
+    """The runtime's version in this environment, for a record whose worker never got to report it."""
+    import importlib.metadata
+
+    if runtime == "llamacpp-cpu":
+        from .engine import LLAMA_CPP
+
+        return LLAMA_CPP["build"]
+    try:
+        return importlib.metadata.version("onnxruntime" if runtime == "onnxruntime-cpu" else "torch").split("+")[0]
+    except importlib.metadata.PackageNotFoundError:
+        return "unknown"
+
+
 def not_timed(args, model_dir: Path, model_id: str, kind: str, runtime: str, e: MeasureError, check: dict, facts: dict,
               inputs: list[Path] | None, out: Path, failed_log: Path, dry: bool, log, finish, warnings: list[str]) -> int:
     """The record of a CPU row with no number: the run's own finding, on a quiet machine."""
     reason = NOT_TIMED[e.code]
-    files = (e.beat.get("weights") if isinstance(e, OverLimit) else e.worker.get("weights")) or check.get("weight_files") or []
+    if isinstance(e, OverLimit):
+        files = e.beat.get("weights")
+    elif isinstance(e, PrepareFailed):
+        files = e.weights
+    else:
+        files = e.worker.get("weights")
+    files = files or check.get("weight_files") or []
     try:
         weights = record.weight_entries([Path(p) for p in files])
     except (FileNotFoundError, ValueError) as err:
         return finish(log, failed_log, "WEIGHTS_MISSING", str(err))
     env = {k: check[k] for k in ("package",) if check.get(k)}
-    version = check.get("runtime_version") or (check.get("runtime_info") or {}).get("version") or "unknown"
+    version = check.get("runtime_version") or (check.get("runtime_info") or {}).get("version") or runtime_version(runtime)
     rec = record.build_not_timed(
         model=model_id, size=args.size, weights=weights, kind=kind, runtime=runtime, version=version, reason=reason, detail=str(e),
         measured=datetime.now().astimezone().isoformat(timespec="seconds"), machine=facts, env={**env, "python": sys.version.split()[0]},

@@ -40,6 +40,14 @@ from typing import Any
 from .errors import MeasureError
 
 STATUSES = ("runs-as-is", "runs-with-fixes")
+# What a failed prepare can still tell the parent: the weight files, for a record of why the row has no number.
+_state: dict[str, Any] = {}
+
+
+class PrepareFailed(MeasureError):
+    def __init__(self, code: str, message: str, weights: list[str]):
+        super().__init__(code, message)
+        self.weights = weights
 
 
 def root() -> Path:
@@ -82,6 +90,7 @@ def prepare(spec: dict, say=print) -> dict:
     size = spec["size"]
     ad.check_size(a, size)
     rt = adapter_spec(a)
+    _state["weights"] = [str(Path(p).resolve()) for p in a.weight_files(size)]
     out = onnx_dir(spec["model"], size)
     weights = [{"file": Path(p).name, "sha256": sha256_file(Path(p))} for p in a.weight_files(size) if Path(p).is_file()]
     key = {"weights": weights, "source": rt["source"], "status": rt["status"], "patch": rt["patch"], "package": ad.package(a)}
@@ -173,7 +182,7 @@ def run_prepare(spec: dict, log=None) -> dict:
     if not result.get("ok"):
         if result.get("traceback"):
             print(result["traceback"], file=sys.stderr, flush=True)
-        raise MeasureError(result.get("code", "ADAPTER_RUNTIME"), result.get("error", "the ONNX export failed"))
+        raise PrepareFailed(result.get("code", "ADAPTER_RUNTIME"), result.get("error", "the ONNX export failed"), result.get("weights") or [])
     for line in result.get("lines", []) if log else []:
         log(line, echo=False)
     return result["info"]
@@ -207,6 +216,8 @@ def main() -> int:
         result = {"ok": False, "code": e.code, "error": str(e)}
     except Exception as e:  # the export raised; keep the traceback for the log
         result = {"ok": False, "code": "ADAPTER_RUNTIME", "error": f"{type(e).__name__}: {e}", "traceback": traceback.format_exc()}
+    if not result["ok"] and "weights" in _state:
+        result["weights"] = _state["weights"]
     Path(spec["result"]).write_text(json.dumps(result))
     return 0 if result["ok"] else 1
 
