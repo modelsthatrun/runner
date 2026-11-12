@@ -13,6 +13,7 @@ import torch
 import torch.nn.functional as F
 from transformers import AutoImageProcessor, AutoModelForDepthEstimation
 
+from mtr_measure import device
 from mtr_measure.predictions import Depth
 
 REPOS = {
@@ -37,13 +38,13 @@ def input_size(size, image):
 def load(size, precision):
     repo, revision = REPOS[size]
     processor = AutoImageProcessor.from_pretrained(repo, revision=revision)
-    model = AutoModelForDepthEstimation.from_pretrained(repo, revision=revision).to("cuda").eval()
+    model = AutoModelForDepthEstimation.from_pretrained(repo, revision=revision).to(device()).eval()
     return {"model": model, "processor": processor}
 
 
 @torch.no_grad()
 def predict(m, x):
-    inputs = m["processor"](images=x, return_tensors="pt").to("cuda")
+    inputs = m["processor"](images=x, return_tensors="pt").to(device())
     depth = m["model"](**inputs).predicted_depth
     return F.interpolate(depth.unsqueeze(1), size=x.size[::-1], mode="bicubic", align_corners=False)[0, 0].cpu()
 

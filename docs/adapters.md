@@ -15,7 +15,7 @@ PRECISIONS: list[str]            # what the official code supports: "fp16", "fp3
 PACKAGE: str                     # the installed distribution that runs the model; its version is recorded
 INPUT: dict[str, str]            # official default input resolution per size, "WxH"
 
-def load(size: str, precision: str) -> Model: ...    # the checkpoint on the GPU at this precision
+def load(size: str, precision: str) -> Model: ...    # the checkpoint on device() at this precision
 def predict(model: Model, x) -> object: ...          # one call, input to output, any output type
 def weight_files(size: str) -> list[pathlib.Path]: ...   # the files load() read, main checkpoint first
 def to_prediction(model, x, out): ...                # predict()'s output as the task's standard type
@@ -37,6 +37,8 @@ def to_prediction(model, x, out): ...                # predict()'s output as the
 | `phase_times(model, out)` | Instead of the three above, when the official package times its own phases and closes each with a synchronize. Return `{"preprocess": ms, "forward": ms, "postprocess": ms}` for the call that returned `out`. `models/yolo26/adapter.py` reads Ultralytics' `Results.speed` |
 
 Never use `eval_predict` or `EVAL` to raise a score. They exist to match the official evaluation.
+
+**The device.** Put the model and its tensors on `mtr_measure.device()`, never on a literal `"cuda"`: it is `"cuda"`, or `"cpu"` for a CPU row ([protocol](protocol.md), "CPU rows"). A CPU row always asks `load()` for fp32. Ultralytics names the GPU `0` and the CPU `"cpu"`. Only a TensorRT row's hooks may name the GPU. If the official code can't run on a CPU, say why in `CPU_UNSUPPORTED = "…"`; the CPU check still tries, and records the reason only if it fails.
 
 **Its environment** is `models/<id>/pyproject.toml`.
 - It depends on `mtr-measure` by path, and pins the official package and torch at exact versions.
@@ -80,6 +82,22 @@ def load_engine(size: str, engine: pathlib.Path) -> Model: ... # the engine in t
   Use `tensorrt-cu12` for a torch built for CUDA 12. After `uv lock`, check that every package the PyTorch row uses kept its version. Pin another TensorRT version only as `docs/protocol.md` ("Runtimes", "The environment") allows, and say why in a comment next to the pin.
 - **Order.** `mtr check --runtime tensorrt`, then `mtr eval --runtime tensorrt`, then the timed run. The queue refuses an engine that wasn't scored.
 
+### An ONNX Runtime row on the CPU
+
+Add one only where the authors publish an ONNX export (or an ONNX file) and the code that runs it with ONNX Runtime ([protocol](protocol.md), "CPU rows"). `models/d-fine/adapter.py` follows a repository's `onnx_inf.py`, `models/yolo26/adapter.py` a package that runs its own ONNX files, `models/ben2/adapter.py` an ONNX file the authors publish.
+
+```python
+ONNXRUNTIME = {"status": "runs-as-is"}                       # plus "input": "640x640" when the ONNX code feeds another input
+
+def onnx_file(size: str, out: pathlib.Path) -> dict: ...      # the official export into `out`, or the published file
+def load_onnx(size: str, onnx: pathlib.Path) -> Model: ...    # the session as the official ONNX inference code makes it
+def onnx_session(model: Model): ...                           # the onnxruntime.InferenceSession inside it
+```
+
+- **`onnx_file()`** returns what `export_onnx()` returns. Without it, the tool uses `export_onnx()`, the TensorRT row's export, when the two rows share one.
+- **`predict()`** checks which model it got and runs the official ONNX inference code's pre-processing, session call and post-processing for the session.
+- **Its environment.** A dependency group named `onnxruntime` with `"onnxruntime==1.31.1; python_version >= '3.11'"` and what the export and inference code import. Adding it must leave every other locked package at its version.
+
 ## Language models
 
 A language model has no code. The pinned llama.cpp build runs its GGUF files with the protocol's settings.
@@ -115,7 +133,7 @@ PRECISIONS = ["bf16"]             # what the model card loads it in
 PACKAGE = "diffusers"
 GENERATION = {"4b": {"resolution": "1024x1024", "steps": 4, "guidance": 1.0, "generator": "cuda"}}
 
-def load(size, precision):        # the pipeline, every component on the GPU
+def load(size, precision):        # the pipeline, every component on device()
     return Flux2KleinPipeline.from_pretrained(REPO, revision=REVISION, torch_dtype=torch.bfloat16).to("cuda")
 
 @torch.inference_mode()
@@ -128,7 +146,7 @@ def weight_files(size): ...       # every weight file load() read, the denoiser'
 
 - **Settings from the model card.** `GENERATION` holds its example's resolution, steps and guidance, and the device it seeds its generator on. Where the card relies on the pipeline's defaults, write those down.
 - **The tool makes the input.** `predict()` gets the prompt and the settings in `x`, and must use them as they are. It returns one PIL image at `x.width` × `x.height`; `mtr check` refuses anything else. `mtr eval --benchmark geneval` calls the same `predict()` with GenEval's prompts and seeds 42 to 45, so the generator must be seeded from `x.seed`.
-- **No offload.** Leave out `enable_model_cpu_offload()`, `enable_sequential_cpu_offload()` and the like, even when the card calls them. Everything stays on the GPU.
+- **No offload.** Leave out `enable_model_cpu_offload()`, `enable_sequential_cpu_offload()` and the like, even when the card calls them. Everything stays on `device()`: the GPU, or for a CPU row the CPU, where the tool also moves a `"cuda"` generator to the CPU.
 - **The scheduler.** The record names the class of the pipeline's `scheduler`. A pipeline without one sets `SCHEDULER` to the sampler's name.
 - **Pin the revision.** Load from the repository's 40-hex commit, and list each weight file at that commit in `weight_files()`.
 - **No `to_prediction()`.** The image is the output.

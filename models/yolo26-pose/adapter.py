@@ -9,6 +9,11 @@ eval_predict().
 
 Ultralytics sends usage events when its `sync` setting is on. The adapter keeps its settings in the
 model's weights directory and turns sync off, so nothing leaves this machine.
+
+Its ONNX Runtime row on the CPU is the docs' ONNX integration: `model.export(format="onnx")` with the export's defaults
+(a static 640x640 input, onnxslim, NMS outside the graph), then `YOLO("yolo26n-pose.onnx")` called like the .pt model,
+which runs ONNX Runtime with the CPU provider on a CPU (ultralytics/nn/backends/onnx.py). A static model is letterboxed
+to the full 640x640.
 """
 
 import os
@@ -16,11 +21,13 @@ from pathlib import Path
 
 import torch
 
-from mtr_measure import weights_dir
+from mtr_measure import device, weights_dir
 from mtr_measure.predictions import Keypoints
 
 WEIGHTS = weights_dir("yolo26-pose")
 os.environ.setdefault("YOLO_CONFIG_DIR", str(WEIGHTS / "config"))
+# A missing package fails the run instead of being installed into the environment.
+os.environ.setdefault("YOLO_AUTOINSTALL", "False")
 
 from ultralytics.utils import SETTINGS  # noqa: E402
 
@@ -33,6 +40,10 @@ SIZES = ["n", "s", "m", "l", "x"]
 PRECISIONS = ["fp16", "fp32"]
 PACKAGE = "ultralytics"
 IMGSZ = 640
+# Ultralytics names the first GPU 0 and the CPU "cpu".
+DEVICE = 0 if device() == "cuda" else "cpu"
+ONNXRUNTIME = {"status": "runs-as-is", "input": f"{IMGSZ}x{IMGSZ}"}
+ONNX_EXPORT = {"format": "onnx", "imgsz": IMGSZ}
 STRIDE = 32
 
 
@@ -46,13 +57,18 @@ def input_size(size, image):
 
 def load(size, precision):
     model = YOLO(str(weight_files(size)[0]))
-    model.to("cuda")
+    model.to(device())
     return {"model": model, "quantize": 16 if precision == "fp16" else 32}
+
+
+def precision_args(m):
+    # An ONNX file's precision was set when it was exported, and the docs call it with no precision argument.
+    return {"quantize": m["quantize"]} if "quantize" in m else {}
 
 
 @torch.inference_mode()
 def predict(m, x):
-    return m["model"].predict(x, imgsz=IMGSZ, quantize=m["quantize"], device=0, verbose=False)[0]
+    return m["model"].predict(x, imgsz=IMGSZ, device=DEVICE, **precision_args(m), verbose=False)[0]
 
 
 def phase_times(m, out):
@@ -62,6 +78,22 @@ def phase_times(m, out):
 
 def weight_files(size):
     return [WEIGHTS / f"yolo26{size}-pose.pt"]
+
+
+def onnx_file(size, out):
+    link = out / f"yolo26{size}-pose.pt"
+    link.symlink_to(weight_files(size)[0])
+    onnx = Path(YOLO(str(link)).export(**ONNX_EXPORT))
+    return {"onnx": onnx, "exporter": f"{PACKAGE} YOLO.export", "args": [f"{k}={v}" for k, v in ONNX_EXPORT.items()]}
+
+
+def load_onnx(size, onnx):
+    return {"model": YOLO(str(onnx), task="pose")}
+
+
+def onnx_session(m):
+    # AutoBackend makes the session on the first call (ultralytics/nn/backends/onnx.py).
+    return m["model"].predictor.model.session
 
 
 # COCO's keypoint names and skeleton (person_keypoints_val2017.json), 0-based.

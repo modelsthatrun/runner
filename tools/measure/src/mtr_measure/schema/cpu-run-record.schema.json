@@ -1,0 +1,1786 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://modelsthatrun.dev/schema/cpu-run-record.schema.json",
+  "$comment": "Generated from ModelsThatRun's schema package. Do not edit by hand.",
+  "title": "CPU run record",
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "image"
+        },
+        "model": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "size": {
+          "type": "string",
+          "minLength": 1
+        },
+        "weights": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": {
+                "type": "string",
+                "minLength": 1
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "file",
+              "bytes",
+              "sha256"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "measurement": {
+          "type": "object",
+          "properties": {
+            "runtime": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "pytorch-cpu",
+                    "onnxruntime-cpu",
+                    "llamacpp-cpu"
+                  ]
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "torch, ONNX Runtime or llama.cpp version"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "runs-as-is",
+                    "runs-with-fixes"
+                  ]
+                },
+                "patch": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "threads": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Threads the computation ran on, read back after the timed calls"
+                },
+                "match": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "boxes",
+                        "masks",
+                        "keypoints",
+                        "alpha",
+                        "depth",
+                        "tokens",
+                        "image"
+                      ]
+                    },
+                    "reference": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "const": "pytorch-cuda"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "What the output was compared with; null when nothing was"
+                    },
+                    "metrics": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "number"
+                      }
+                    },
+                    "tolerance": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "reference",
+                    "metrics",
+                    "tolerance"
+                  ],
+                  "additionalProperties": false
+                },
+                "export": {
+                  "description": "onnxruntime-cpu: the ONNX file the official export wrote, or the one the authors publish",
+                  "type": "object",
+                  "properties": {
+                    "exporter": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The official export: a script at the pinned commit, or a package function"
+                    },
+                    "args": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Its arguments, as the README or docs give them, with the released checkpoint"
+                    },
+                    "opset": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "onnx_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "onnx_bytes": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "exporter",
+                    "args",
+                    "opset",
+                    "onnx_sha256",
+                    "onnx_bytes"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "name",
+                "version",
+                "status",
+                "threads",
+                "match"
+              ],
+              "additionalProperties": false
+            },
+            "precision": {
+              "type": "string",
+              "const": "fp32"
+            },
+            "batch": {
+              "type": "number",
+              "const": 1
+            },
+            "input": {
+              "type": "string",
+              "pattern": "^\\d+x\\d+$"
+            },
+            "latency_ms": {
+              "type": "object",
+              "properties": {
+                "median": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "p90": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "median",
+                "p90"
+              ],
+              "additionalProperties": false
+            },
+            "latency_scope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ram_peak_mib": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Peak resident memory (VmHWM) of the process that ran the model, loading included; the highest of the runs"
+            },
+            "iterations": {
+              "type": "object",
+              "properties": {
+                "warmup": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "timed": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "warmup",
+                "timed"
+              ],
+              "additionalProperties": false
+            },
+            "env": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "CPU model, from /proc/cpuinfo"
+                },
+                "cpu_cores": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Physical cores"
+                },
+                "cpu_threads": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Logical CPUs"
+                },
+                "ram_total_mib": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Installed memory the OS sees, from /proc/meminfo"
+                },
+                "cpu_power_limit_w": {
+                  "description": "The CPU package's sustained power limit (Intel RAPL long term), where Linux shows it",
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "os": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "python": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "torch": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "package": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "cpu",
+                "cpu_cores",
+                "cpu_threads",
+                "ram_total_mib",
+                "os",
+                "python",
+                "torch",
+                "package"
+              ],
+              "additionalProperties": false
+            },
+            "measured": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            "protocol": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "runs": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "median": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "p90": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "ram_peak_mib": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "median",
+                  "p90",
+                  "ram_peak_mib"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "runtime",
+            "precision",
+            "batch",
+            "input",
+            "latency_ms",
+            "latency_scope",
+            "ram_peak_mib",
+            "iterations",
+            "env",
+            "measured",
+            "protocol",
+            "runs"
+          ],
+          "additionalProperties": false
+        },
+        "provenance": {
+          "type": "object",
+          "properties": {
+            "tool": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "const": "mtr"
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "commit": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{40}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "git commit of the tool checkout, null outside git"
+                },
+                "dirty": {
+                  "description": "Whether tools/measure or the model directory had uncommitted changes",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "version",
+                "commit",
+                "dirty"
+              ],
+              "additionalProperties": false
+            },
+            "adapter_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "lock_sha256": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "sha256 of the model environment's uv.lock"
+            },
+            "input_sha256": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "sha256 of each input file, for image models; null for language models"
+            }
+          },
+          "required": [
+            "tool",
+            "adapter_sha256",
+            "lock_sha256",
+            "input_sha256"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "model",
+        "size",
+        "weights",
+        "measurement"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "generation"
+        },
+        "model": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "size": {
+          "type": "string",
+          "minLength": 1
+        },
+        "weights": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": {
+                "type": "string",
+                "minLength": 1
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "file",
+              "bytes",
+              "sha256"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "measurement": {
+          "type": "object",
+          "properties": {
+            "runtime": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "pytorch-cpu",
+                    "onnxruntime-cpu",
+                    "llamacpp-cpu"
+                  ]
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "torch, ONNX Runtime or llama.cpp version"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "runs-as-is",
+                    "runs-with-fixes"
+                  ]
+                },
+                "patch": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "threads": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Threads the computation ran on, read back after the timed calls"
+                },
+                "match": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "boxes",
+                        "masks",
+                        "keypoints",
+                        "alpha",
+                        "depth",
+                        "tokens",
+                        "image"
+                      ]
+                    },
+                    "reference": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "const": "pytorch-cuda"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "What the output was compared with; null when nothing was"
+                    },
+                    "metrics": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "number"
+                      }
+                    },
+                    "tolerance": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "reference",
+                    "metrics",
+                    "tolerance"
+                  ],
+                  "additionalProperties": false
+                },
+                "export": {
+                  "description": "onnxruntime-cpu: the ONNX file the official export wrote, or the one the authors publish",
+                  "type": "object",
+                  "properties": {
+                    "exporter": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The official export: a script at the pinned commit, or a package function"
+                    },
+                    "args": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Its arguments, as the README or docs give them, with the released checkpoint"
+                    },
+                    "opset": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "onnx_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "onnx_bytes": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "exporter",
+                    "args",
+                    "opset",
+                    "onnx_sha256",
+                    "onnx_bytes"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "name",
+                "version",
+                "status",
+                "threads",
+                "match"
+              ],
+              "additionalProperties": false
+            },
+            "precision": {
+              "type": "string",
+              "const": "fp32"
+            },
+            "batch": {
+              "type": "number",
+              "const": 1
+            },
+            "input": {
+              "type": "string",
+              "pattern": "^\\d+x\\d+$"
+            },
+            "latency_ms": {
+              "type": "object",
+              "properties": {
+                "median": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "p90": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "median",
+                "p90"
+              ],
+              "additionalProperties": false
+            },
+            "latency_scope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ram_peak_mib": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Peak resident memory (VmHWM) of the process that ran the model, loading included; the highest of the runs"
+            },
+            "iterations": {
+              "type": "object",
+              "properties": {
+                "warmup": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "timed": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "warmup",
+                "timed"
+              ],
+              "additionalProperties": false
+            },
+            "env": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "CPU model, from /proc/cpuinfo"
+                },
+                "cpu_cores": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Physical cores"
+                },
+                "cpu_threads": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Logical CPUs"
+                },
+                "ram_total_mib": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Installed memory the OS sees, from /proc/meminfo"
+                },
+                "cpu_power_limit_w": {
+                  "description": "The CPU package's sustained power limit (Intel RAPL long term), where Linux shows it",
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "os": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "python": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "torch": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "package": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "cpu",
+                "cpu_cores",
+                "cpu_threads",
+                "ram_total_mib",
+                "os",
+                "python",
+                "torch",
+                "package"
+              ],
+              "additionalProperties": false
+            },
+            "measured": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            "protocol": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "runs": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "median": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "p90": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "ram_peak_mib": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "median",
+                  "p90",
+                  "ram_peak_mib"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "generation": {
+              "type": "object",
+              "properties": {
+                "steps": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Denoising steps per image"
+                },
+                "guidance": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Guidance scale as the pipeline takes it; 0 or 1 means none for most pipelines"
+                },
+                "seed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "generator": {
+                  "type": "string",
+                  "enum": [
+                    "cpu",
+                    "cuda"
+                  ],
+                  "description": "Device of the seeded torch.Generator"
+                },
+                "scheduler": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The pipeline's scheduler class, e.g. FlowMatchEulerDiscreteScheduler"
+                }
+              },
+              "required": [
+                "steps",
+                "guidance",
+                "seed",
+                "generator",
+                "scheduler"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "runtime",
+            "precision",
+            "batch",
+            "input",
+            "latency_ms",
+            "latency_scope",
+            "ram_peak_mib",
+            "iterations",
+            "env",
+            "measured",
+            "protocol",
+            "runs",
+            "generation"
+          ],
+          "additionalProperties": false
+        },
+        "provenance": {
+          "type": "object",
+          "properties": {
+            "tool": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "const": "mtr"
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "commit": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{40}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "git commit of the tool checkout, null outside git"
+                },
+                "dirty": {
+                  "description": "Whether tools/measure or the model directory had uncommitted changes",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "version",
+                "commit",
+                "dirty"
+              ],
+              "additionalProperties": false
+            },
+            "adapter_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "lock_sha256": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "sha256 of the model environment's uv.lock"
+            },
+            "input_sha256": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "sha256 of each input file, for image models; null for language models"
+            }
+          },
+          "required": [
+            "tool",
+            "adapter_sha256",
+            "lock_sha256",
+            "input_sha256"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "model",
+        "size",
+        "weights",
+        "measurement"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "llm"
+        },
+        "model": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "size": {
+          "type": "string",
+          "minLength": 1
+        },
+        "weights": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": {
+                "type": "string",
+                "minLength": 1
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "file",
+              "bytes",
+              "sha256"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "measurement": {
+          "type": "object",
+          "properties": {
+            "runtime": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "pytorch-cpu",
+                    "onnxruntime-cpu",
+                    "llamacpp-cpu"
+                  ]
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "torch, ONNX Runtime or llama.cpp version"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "runs-as-is",
+                    "runs-with-fixes"
+                  ]
+                },
+                "patch": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "threads": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Threads the computation ran on, read back after the timed calls"
+                },
+                "match": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "boxes",
+                        "masks",
+                        "keypoints",
+                        "alpha",
+                        "depth",
+                        "tokens",
+                        "image"
+                      ]
+                    },
+                    "reference": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "const": "pytorch-cuda"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "What the output was compared with; null when nothing was"
+                    },
+                    "metrics": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "number"
+                      }
+                    },
+                    "tolerance": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "reference",
+                    "metrics",
+                    "tolerance"
+                  ],
+                  "additionalProperties": false
+                },
+                "export": {
+                  "description": "onnxruntime-cpu: the ONNX file the official export wrote, or the one the authors publish",
+                  "type": "object",
+                  "properties": {
+                    "exporter": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The official export: a script at the pinned commit, or a package function"
+                    },
+                    "args": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Its arguments, as the README or docs give them, with the released checkpoint"
+                    },
+                    "opset": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "onnx_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "onnx_bytes": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "exporter",
+                    "args",
+                    "opset",
+                    "onnx_sha256",
+                    "onnx_bytes"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "name",
+                "version",
+                "status",
+                "threads",
+                "match"
+              ],
+              "additionalProperties": false
+            },
+            "engine": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "release": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "build": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "cuda": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "binary_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "name",
+                "release",
+                "build",
+                "cuda",
+                "binary_sha256"
+              ],
+              "additionalProperties": false,
+              "description": "The same binary the GPU rows run, with the GPU hidden"
+            },
+            "quant": {
+              "type": "string",
+              "minLength": 1
+            },
+            "batch": {
+              "type": "number",
+              "const": 1
+            },
+            "context": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "prompt_tokens": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "prompt_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "gen_tokens": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "ttft_ms": {
+              "type": "object",
+              "properties": {
+                "median": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "p90": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "median",
+                "p90"
+              ],
+              "additionalProperties": false
+            },
+            "e2e_ms": {
+              "type": "object",
+              "properties": {
+                "median": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "p90": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "median",
+                "p90"
+              ],
+              "additionalProperties": false
+            },
+            "prefill_tps": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "decode_tps": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "ram_peak_mib": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Peak resident memory of llama-server, the mapped GGUF file included"
+            },
+            "gpu_layers": {
+              "type": "string",
+              "pattern": "^0\\/\\d+$",
+              "description": "Layers on the GPU: none"
+            },
+            "server_args": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "iterations": {
+              "type": "object",
+              "properties": {
+                "warmup": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "timed": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "warmup",
+                "timed"
+              ],
+              "additionalProperties": false
+            },
+            "env": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "CPU model, from /proc/cpuinfo"
+                },
+                "cpu_cores": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Physical cores"
+                },
+                "cpu_threads": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Logical CPUs"
+                },
+                "ram_total_mib": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Installed memory the OS sees, from /proc/meminfo"
+                },
+                "cpu_power_limit_w": {
+                  "description": "The CPU package's sustained power limit (Intel RAPL long term), where Linux shows it",
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "os": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "python": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "cpu",
+                "cpu_cores",
+                "cpu_threads",
+                "ram_total_mib",
+                "os",
+                "python"
+              ],
+              "additionalProperties": false
+            },
+            "measured": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            "protocol": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "runs": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ttft_ms": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "prefill_tps": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "decode_tps": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "ram_peak_mib": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "ttft_ms",
+                  "prefill_tps",
+                  "decode_tps",
+                  "ram_peak_mib"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "runtime",
+            "engine",
+            "quant",
+            "batch",
+            "context",
+            "prompt_tokens",
+            "prompt_sha256",
+            "gen_tokens",
+            "ttft_ms",
+            "e2e_ms",
+            "prefill_tps",
+            "decode_tps",
+            "ram_peak_mib",
+            "gpu_layers",
+            "server_args",
+            "iterations",
+            "env",
+            "measured",
+            "protocol",
+            "runs"
+          ],
+          "additionalProperties": false
+        },
+        "provenance": {
+          "type": "object",
+          "properties": {
+            "tool": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "const": "mtr"
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "commit": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{40}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "git commit of the tool checkout, null outside git"
+                },
+                "dirty": {
+                  "description": "Whether tools/measure or the model directory had uncommitted changes",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "version",
+                "commit",
+                "dirty"
+              ],
+              "additionalProperties": false
+            },
+            "adapter_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "lock_sha256": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "sha256 of the model environment's uv.lock"
+            },
+            "input_sha256": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "sha256 of each input file, for image models; null for language models"
+            }
+          },
+          "required": [
+            "tool",
+            "adapter_sha256",
+            "lock_sha256",
+            "input_sha256"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "model",
+        "size",
+        "weights",
+        "measurement"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "image",
+            "llm",
+            "generation"
+          ]
+        },
+        "model": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "size": {
+          "type": "string",
+          "minLength": 1
+        },
+        "weights": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": {
+                "type": "string",
+                "minLength": 1
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "file",
+              "bytes",
+              "sha256"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "measurement": {
+          "type": "object",
+          "properties": {
+            "runtime": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "pytorch-cpu",
+                    "onnxruntime-cpu",
+                    "llamacpp-cpu"
+                  ]
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "name",
+                "version"
+              ],
+              "additionalProperties": false
+            },
+            "not_timed": {
+              "type": "object",
+              "properties": {
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "over-limit",
+                    "unsupported",
+                    "precision"
+                  ]
+                },
+                "detail": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "What the tool saw"
+                },
+                "limit_s": {
+                  "description": "over-limit: the longest call the protocol times",
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "call_s": {
+                  "description": "over-limit: how long the call had run when it was stopped",
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "reason",
+                "detail"
+              ],
+              "additionalProperties": false
+            },
+            "input": {
+              "type": "string",
+              "pattern": "^\\d+x\\d+$"
+            },
+            "env": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "CPU model, from /proc/cpuinfo"
+                },
+                "cpu_cores": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Physical cores"
+                },
+                "cpu_threads": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Logical CPUs"
+                },
+                "ram_total_mib": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Installed memory the OS sees, from /proc/meminfo"
+                },
+                "cpu_power_limit_w": {
+                  "description": "The CPU package's sustained power limit (Intel RAPL long term), where Linux shows it",
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "os": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "python": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "torch": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "package": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "cpu",
+                "cpu_cores",
+                "cpu_threads",
+                "ram_total_mib",
+                "os",
+                "python"
+              ],
+              "additionalProperties": false
+            },
+            "measured": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            "protocol": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "runtime",
+            "not_timed",
+            "env",
+            "measured",
+            "protocol"
+          ],
+          "additionalProperties": false
+        },
+        "provenance": {
+          "type": "object",
+          "properties": {
+            "tool": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "const": "mtr"
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "commit": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{40}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "git commit of the tool checkout, null outside git"
+                },
+                "dirty": {
+                  "description": "Whether tools/measure or the model directory had uncommitted changes",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "version",
+                "commit",
+                "dirty"
+              ],
+              "additionalProperties": false
+            },
+            "adapter_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "lock_sha256": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "sha256 of the model environment's uv.lock"
+            },
+            "input_sha256": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "sha256 of each input file, for image models; null for language models"
+            }
+          },
+          "required": [
+            "tool",
+            "adapter_sha256",
+            "lock_sha256",
+            "input_sha256"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "model",
+        "size",
+        "weights",
+        "measurement"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

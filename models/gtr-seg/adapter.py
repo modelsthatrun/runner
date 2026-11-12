@@ -24,7 +24,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as T
 
-from mtr_measure import weights_dir
+from mtr_measure import device, weights_dir
 from mtr_measure.predictions import Masks
 
 REPO_URL = "https://github.com/Intellindust-AI-Lab/GTR.git"
@@ -37,6 +37,9 @@ REPO = WEIGHTS / "GTR"
 TASK = "instance-segmentation"
 SIZES = ["s", "m", "l", "x"]
 PRECISIONS = ["fp16", "fp32"]
+# The official model runs flash-linear-attention's Triton kernels (chunk_gla, ShortConvolution), which only run on a
+# CUDA device, so a CPU row records this instead of a number. The CPU check still tries.
+CPU_UNSUPPORTED = "GTR's official code runs flash-linear-attention's Triton kernels, which need a CUDA GPU"
 INPUT = {s: "640x640" for s in SIZES}
 DTYPES = {"fp16": torch.float16, "fp32": torch.float32}
 # torch_inf.py's default display threshold.
@@ -102,7 +105,7 @@ def load(size, precision):
     h, w = cfg.yaml_cfg["eval_spatial_size"]
     transforms = T.Compose([T.Resize((h, w)), T.ToTensor(), T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
     names = [mscoco_category2name[mscoco_label2category[i]] for i in range(80)]
-    net = Model().to("cuda", dtype=dtype)
+    net = Model().to(device(), dtype=dtype)
     refuse_gla_kernel(net)
     return {"net": net, "dtype": dtype, "transforms": transforms, "names": names}
 
@@ -111,15 +114,15 @@ def load(size, precision):
 def eval_predict(m, x):
     # The top 300 instances with every score, as the repository's COCO evaluation scores them.
     w, h = x.size
-    images = m["transforms"](x).unsqueeze(0).to("cuda", dtype=m["dtype"])
-    labels, boxes, scores, masks = m["net"](images, torch.tensor([[w, h]], device="cuda"))
+    images = m["transforms"](x).unsqueeze(0).to(device(), dtype=m["dtype"])
+    labels, boxes, scores, masks = m["net"](images, torch.tensor([[w, h]], device=device()))
     return labels[0].cpu(), scores[0].float().cpu(), masks[0]
 
 
 # predict() in the three phases `mtr profile` times apart: the tensor on the GPU, the network, and the decoded result.
 @torch.inference_mode()
 def preprocess(m, x):
-    return m["transforms"](x).unsqueeze(0).to("cuda", dtype=m["dtype"])
+    return m["transforms"](x).unsqueeze(0).to(device(), dtype=m["dtype"])
 
 
 @torch.inference_mode()
@@ -130,7 +133,7 @@ def forward(m, images):
 @torch.inference_mode()
 def postprocess(m, raw, x):
     w, h = x.size
-    labels, boxes, scores, masks = m["net"].postprocessor(raw, torch.tensor([[w, h]], device="cuda"))
+    labels, boxes, scores, masks = m["net"].postprocessor(raw, torch.tensor([[w, h]], device=device()))
     labels, scores, masks = labels[0].cpu(), scores[0].float().cpu(), masks[0]
     keep = scores > THRESHOLD
     return labels[keep], scores[keep], masks[keep.to(masks.device)].cpu()

@@ -17,7 +17,7 @@ import torch
 import torch.nn as nn
 import torchvision.transforms as T
 
-from mtr_measure import weights_dir
+from mtr_measure import device, weights_dir
 from mtr_measure.predictions import Boxes
 
 REPO_URL = "https://github.com/Intellindust-AI-Lab/DEIMv2.git"
@@ -87,21 +87,21 @@ def load(size, precision):
     h, w = cfg.yaml_cfg["eval_spatial_size"]
     transforms = T.Compose([T.Resize((h, w)), T.ToTensor(), T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
     names = [mscoco_category2name[mscoco_label2category[i]] for i in range(80)]
-    return {"net": Model().to("cuda"), "transforms": transforms, "names": names}
+    return {"net": Model().to(device()), "transforms": transforms, "names": names}
 
 
 @torch.inference_mode()
 def eval_predict(m, x):
     # The top 300 boxes with every score, as the repository's COCO evaluation scores them.
     w, h = x.size
-    labels, boxes, scores = m["net"](m["transforms"](x).unsqueeze(0).to("cuda"), torch.tensor([[w, h]], device="cuda"))
+    labels, boxes, scores = m["net"](m["transforms"](x).unsqueeze(0).to(device()), torch.tensor([[w, h]], device=device()))
     return labels[0].cpu(), boxes[0].cpu(), scores[0].cpu()
 
 
 # predict() in the three phases `mtr profile` times apart: the tensor on the GPU, the network, and the decoded result.
 @torch.inference_mode()
 def preprocess(m, x):
-    return m["transforms"](x).unsqueeze(0).to("cuda")
+    return m["transforms"](x).unsqueeze(0).to(device())
 
 
 @torch.inference_mode()
@@ -112,7 +112,7 @@ def forward(m, images):
 @torch.inference_mode()
 def postprocess(m, raw, x):
     w, h = x.size
-    labels, boxes, scores = m["net"].postprocessor(raw, torch.tensor([[w, h]], device="cuda"))
+    labels, boxes, scores = m["net"].postprocessor(raw, torch.tensor([[w, h]], device=device()))
     labels, boxes, scores = labels[0].cpu(), boxes[0].cpu(), scores[0].cpu()
     keep = scores > THRESHOLD
     return labels[keep], boxes[keep], scores[keep]

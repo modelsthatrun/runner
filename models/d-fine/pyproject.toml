@@ -36,6 +36,15 @@ tensorrt-cu13-bindings = { index = "nvidia" }
 # lose 5-13 COCO AP for S, M, L and X. On S, every release tried from 10.13.3.9 on loses about 9 AP even in FP32, while
 # 10.13.2.6, 10.4 (the README's version) and ONNX Runtime match PyTorch (docs/protocol.md, "Runtimes").
 [dependency-groups]
+# ONNX Runtime rows on the CPU (docs/protocol.md, "CPU rows"), installed only for `--runtime onnxruntime-cpu`. The same
+# export as the TensorRT row (onnx, onnxsim, onnxscript), and tools/inference/onnx_inf.py imports onnxruntime and cv2.
+onnxruntime = [
+  "onnxruntime==1.31.1; python_version >= '3.11'",
+  "onnx",
+  "onnxsim",
+  "onnxscript",
+  "opencv-python-headless",
+]
 tensorrt = [
   "tensorrt-cu13==10.13.2.6",
   "tensorrt-cu13-libs==10.13.2.6",

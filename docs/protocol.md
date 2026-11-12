@@ -12,7 +12,7 @@ It handles three kinds of model:
 - **Language models** (`KIND = "llm"`). They run as GGUF files through one pinned llama.cpp build.
 - **Text-to-image models** (`KIND = "generation"`). They run a pipeline, such as a diffusers one, through a Python adapter like an image model's, and make one image per call ("Image generation" below).
 
-An image model can also have a TensorRT row: the same checkpoint, run as an engine built from the authors' own ONNX export ("Runtimes" below).
+An image model can also have a TensorRT row: the same checkpoint, run as an engine built from the authors' own ONNX export ("Runtimes" below). Any checkpoint can also have CPU rows: the same official code with the GPU hidden ("CPU rows" below).
 
 ## The machine
 
@@ -139,7 +139,8 @@ A runtime is how a checkpoint's call executes. Every record names one, or means 
 
 - **`pytorch-cuda`, the default.** The official PyTorch code, eager, on the GPU. A record without a `runtime` block is this one.
 - **`tensorrt`.** An engine built from the authors' own ONNX export, with the pinned TensorRT ("The environment", below), run the way their TensorRT inference code runs it. It is another measurement of the same checkpoint: the weights, the license and the outputs stay the checkpoint's.
-- **Other kinds keep their runtime.** Language models already run on llama.cpp, and text-to-image models on their PyTorch pipeline.
+- **Other kinds keep their runtime on the GPU.** Language models already run on llama.cpp, and text-to-image models on their PyTorch pipeline.
+- **CPU runtimes:** `pytorch-cpu`, `onnxruntime-cpu` and `llamacpp-cpu` ("CPU rows" below).
 
 **The official path only.** A model has a TensorRT row only where its authors publish the whole path: an export script or export API, and code that runs the result. The adapter calls them with the arguments their README gives (`docs/adapters.md`).
 - Nothing of our own: no export of ours, no edits to the ONNX graph, no plugins, and no builder settings the docs don't name.
@@ -176,6 +177,45 @@ A runtime is how a checkpoint's call executes. Every record names one, or means 
 - **License.** TensorRT is NVIDIA's proprietary SDK. Installing the group means accepting the NVIDIA Software License Agreement and its TensorRT supplement, in `LICENSE.txt` of the `tensorrt` package. Among other terms it allows use only on systems with NVIDIA GPUs and lets the software collect non-personal information about the system. Read it before you install.
 
 **Community submissions** of TensorRT records aren't open yet. `mtr submit` sends only `runs/<size>.json`.
+
+## CPU rows
+
+A CPU row is a checkpoint run with no GPU at all: the same official code, with the GPU hidden from the process. It answers "what if I have no GPU?". Its numbers are never compared with a GPU's.
+
+- **`pytorch-cpu`.** Image and text-to-image models: the official PyTorch or diffusers code. Adapters put the model on `mtr_measure.device()`, which is `"cpu"` here.
+- **`onnxruntime-cpu`.** Image models whose authors publish an ONNX export and the code that runs it with ONNX Runtime: that export of the released checkpoint (or the ONNX file they publish), run by that code, on ONNX Runtime's CPU provider. The same rule as for TensorRT rows: the official path only, nothing of our own. Its pre- and post-processing are the official ONNX inference code's, which may differ from the PyTorch code's (D-FINE's letterboxes where its PyTorch script stretches).
+- **`llamacpp-cpu`.** Language models: the pinned llama.cpp binary the GPU row runs, with the GPU hidden, `-ngl 0` and `-dev none`, so no layer and no prompt batch reaches it. `-ngl 0` alone still sends a long prompt's batches to the GPU.
+
+**How it runs.**
+- **The GPU is hidden.** The worker starts with `CUDA_VISIBLE_DEVICES` set to nothing and `MTR_DEVICE=cpu`. A worker that can still see a GPU fails, and so does a run any of whose processes appears on the GPU (`GPU_TOUCHED`).
+- **fp32 only.** It is the only precision every CPU runs natively, and the protocol doesn't time an emulation. The tool asks every adapter for fp32. The first warm-up call runs under a probe in PyTorch's dispatcher: if any operation produces an fp16 or bf16 tensor, as a package's own autocast does, the row gets no number (`PRECISION`). An ONNX file with fp16 or bf16 weights or inputs gets none either. A GGUF file's quantization stays as it is.
+- **Threads.** The physical cores, which is what PyTorch, ONNX Runtime and llama.cpp each default to. The tool sets torch's threads and llama.cpp's `-t` and `-tb`, leaves an official ONNX Runtime session at its default, and records the threads read back after the timed calls.
+- **Calls.** Three fresh processes and `MAX_SPREAD`, as for every row, with fewer calls:
+
+  | Kind | Warm-up | Timed |
+  |---|---|---|
+  | image | 5 | 30 |
+  | image, when one call takes more than 10 s | 1 | 5 |
+  | text-to-image | 1 | 5 |
+  | language model | 1 | 5 requests (512 + 256 tokens, 8K context) |
+
+- **Warm-up time.** Warm-up goes on until it has lasted at least `CPU_WARMUP_MIN_S` (60 s, provisional), so a desktop CPU's short boost above its sustained power limit is over before the timed calls start.
+- **Steady calls.** If the median of the first half of the timed calls differs from the second half's by more than 5%, the run fails (`UNSTEADY`). So does one during which the CPU throttled for heat (`THROTTLED`).
+- **A quiet machine.** Other programs may use at most 5% of all logical CPUs before and during each run (`CPU_BUSY`; provisional, set from the first batch). Free memory must hold what the check saw the worker use, with room to spare, and nothing of the worker may be swapped out (`RAM_LOW`).
+- **Nothing is paused.** A CPU row holds no GPU, so the pause hooks don't run. `mtr queue run` measures the GPU rows inside one pause, then the CPU rows after it.
+- **Memory.** `ram_peak_mib` is the peak resident set (`VmHWM`) of the process that ran the model, read from `/proc`: loading included, and for llama-server the mapped GGUF file's pages too. Each run's is its own process's, and the record keeps the highest.
+
+**The limit.** A CPU row times calls of at most `CPU_CALL_LIMIT_S`, 300 s. The tool stops a call that runs past it. A quiet `mtr run` that sees it happen writes a record that says so instead of a number. So does one whose code doesn't run on a CPU (`CPU_UNSUPPORTED`, which an adapter declares and the check confirms by trying) or computes in half precision there (`PRECISION`). These records are the tool's, never typed.
+
+**Matched, not scored.** A CPU row is the same weights and the same official code in fp32, so it isn't scored on a benchmark. Instead `mtr check` compares its output on the task's timing input with the GPU row's:
+- The GPU check saves its prediction as `.check/<size>.reference.npz` (a language model's greedy answer as `.check/<size>.reference.json`). The CPU check saves its own and compares, so it never needs the GPU.
+- Boxes, masks and keypoints match object by object (same label, IoU), mattes by mean difference, depth by correlation and relative error, a language model by its next token at eight points of the GPU's answer. `match.py` holds the tolerances, looser for ONNX Runtime, whose pre-processing may differ.
+- A text-to-image image can't be matched, because fp32 and fp16 draw other pixels: its check only refuses a blank image. Look at it.
+- The queue refuses a CPU row whose check didn't match (`NOT_MATCHED`). The record keeps the match in `runtime.match`.
+
+**Files.** `runs/<size>.<runtime>.json` with its `.times.json`, and `.check/<size>.<runtime>.json`. ONNX files stay in `~/.cache/modelsthatrun/onnx/<model>/<size>/`; `mtr clean` removes them. The `onnxruntime` dependency group holds ONNX Runtime 1.31.1 and whatever the official export and inference code import; `--runtime onnxruntime-cpu` adds it to `uv run`.
+
+**Community submissions** of CPU records aren't open yet.
 
 ## Accuracy
 

@@ -5,6 +5,7 @@ The `mtr` command (main.py) runs these in the model's own uv environment:
     mtr check <model> --size <size> [--input <file>]     does the adapter work? Pauses nothing, writes no record
     mtr run <model> --size <size> [--input <file>]       one timed measurement: models/<id>/runs/<size>.json
     … --runtime tensorrt                                 check, eval, queue and run a TensorRT row (trt.py)
+    … --runtime pytorch-cpu | onnxruntime-cpu | llamacpp-cpu    the same on the CPU, the GPU hidden (cpurun.py)
     mtr eval <model> --size <size> --benchmark <name>    accuracy on a standard benchmark. Pauses nothing
     mtr profile <model> --size <size> [--input <file>]   GPU time by kernel, for estimates on other GPUs. Pauses nothing
     mtr queue add | list | run | drop                    batch timed runs into one pause (runqueue.py)
@@ -35,7 +36,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import adapter as ad
-from . import checks, cpu, desktop, machine, paths, protocol, record, timing, trt
+from . import checks, cpu, desktop, machine, paths, protocol, record, runtimes, timing, trt
 from .errors import MeasureError, emit
 from .gpu import MIB, Gpu, Poller, sample_for
 
@@ -74,13 +75,14 @@ def model_args(p: argparse.ArgumentParser, input_required: bool) -> None:
 
 
 def runtime_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--runtime", default=trt.DEFAULT, choices=trt.RUNTIMES,
-                   help="How the call runs: the official PyTorch code (default), or a TensorRT engine from the authors' ONNX export")
+    p.add_argument("--runtime", default=runtimes.DEFAULT, choices=runtimes.RUNTIMES,
+                   help="How the call runs: the official code on the GPU (default), a TensorRT engine from the authors' ONNX export, "
+                        "or on the CPU with the GPU hidden: pytorch-cpu (image and text-to-image), onnxruntime-cpu (the authors' "
+                        "ONNX export), llamacpp-cpu (language models)")
 
 
 def image_only(kind: str, runtime: str) -> None:
-    if runtime != trt.DEFAULT and kind != "image":
-        raise MeasureError("USAGE", f"--runtime {runtime} is for image models only; a {kind} model keeps its own runtime")
+    runtimes.check(kind, runtime)
 
 
 def check_poll(args: argparse.Namespace) -> None:
@@ -161,10 +163,10 @@ def finish(log: Log, log_path: Path, code: str, message: str, outputs: dict | No
 # --- check ---------------------------------------------------------------------------------------
 
 
-def write_check(model_dir: Path, size: str, check: dict, runtime: str = trt.DEFAULT) -> Path:
+def write_check(model_dir: Path, size: str, check: dict, runtime: str = runtimes.DEFAULT, ok: bool = True) -> Path:
     path = record.check_path(model_dir, size, runtime)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"ok": True, "size": size, "protocol": protocol.PROTOCOL_VERSION, **record.fingerprint(model_dir),
+    path.write_text(json.dumps({"ok": ok, "size": size, "protocol": protocol.PROTOCOL_VERSION, **record.fingerprint(model_dir),
                                 **check, "checked": datetime.now().astimezone().isoformat(timespec="seconds")}, indent=2) + "\n")
     return path
 
@@ -191,20 +193,25 @@ def cmd_check(argv: list[str], log: Log) -> int:
     model_args(p, input_required=False)
     p.add_argument("--task", help="Task id, to check to_prediction() (default: the adapter's TASK)")
     runtime_args(p)
-    p.add_argument("--rebuild", action="store_true", help="--runtime tensorrt: build the engine again even if the kept one matches. Its eval then has to be redone")
+    p.add_argument("--rebuild", action="store_true", help="--runtime tensorrt or onnxruntime-cpu: export (and build) again even if the kept "
+                                                          "file matches. A TensorRT engine's eval then has to be redone")
     args = p.parse_args(argv)
     check_poll(args)
     model_dir = check_paths(args)
     model_id = args.model_id or model_dir.name
     kind = ad.kind_of_file(model_dir / "adapter.py")
     image_only(kind, args.runtime)
+    if runtimes.is_cpu(args.runtime):
+        from . import cpurun
+
+        return cpurun.cmd_check(args, model_dir, model_id, kind, log, finish, write_check, default_inputs, read_task)
     llm = kind == "llm"
     gen = kind == "generation"
     log_path = record.check_path(model_dir, args.size, args.runtime).with_suffix(".log")
     warnings: list[str] = []
     info: dict | None = None
 
-    on = f" on {args.runtime}" if args.runtime != trt.DEFAULT else ""
+    on = f" on {args.runtime}" if args.runtime != runtimes.DEFAULT else ""
     log(f"mtr check {model_id} / {args.size}{on} (not a measurement: nothing is paused, no record is written)")
     log(f"command: {shlex.join(sys.argv)}", echo=False)
     try:
@@ -213,6 +220,10 @@ def cmd_check(argv: list[str], log: Log) -> int:
 
             a = llmcli.load(model_dir, args.size)
             spec, weights, binary = llmcli.spec(a, model_id, args.size, record.check_path(model_dir, args.size).parent, check=True, say=log, gpu=args.gpu)
+            # The GPU's greedy answer to the timing prompt, which the CPU row's check compares with (cpullm.py).
+            ref = record.check_path(model_dir, args.size).with_name(f"{args.size}.reference.json")
+            ref.unlink(missing_ok=True)
+            spec["reference_out"] = str(ref)
             module = "mtr_measure.llm"
             what = f"{spec['warmup']} warm-up and {spec['timed']} timed requests of {spec['prompt_tokens']} + {spec['gen_tokens']} tokens"
         else:
@@ -223,6 +234,12 @@ def cmd_check(argv: list[str], log: Log) -> int:
             warmup, timed = (protocol.GEN_CHECK_WARMUP, protocol.GEN_CHECK_TIMED) if gen else (protocol.CHECK_WARMUP, protocol.CHECK_TIMED)
             spec = {"adapter": str(model_dir / "adapter.py"), "size": args.size, "inputs": [str(f) for f in inputs],
                     "warmup": warmup, "timed": timed, "mode": "check", "task": task}
+            if args.runtime == runtimes.DEFAULT:
+                # The GPU's prediction on the timing input, which the CPU rows are compared with (match.py).
+                ref = record.reference_path(model_dir, args.size)
+                ref.unlink(missing_ok=True)
+                ref.with_suffix(".png").unlink(missing_ok=True)
+                spec["prediction_out"] = str(ref)
             module = "mtr_measure.worker"
             what = f"{warmup} warm-up and {timed} timed predict() calls"
         gpu = Gpu(args.gpu)
@@ -308,18 +325,22 @@ def cmd_run(argv: list[str], log: Log) -> int:
     check_poll(args)
     model_dir = check_paths(args)
     model_id = args.model_id or model_dir.name
-    sfx = trt.suffix(args.runtime)
+    sfx = runtimes.suffix(args.runtime)
     out = (args.out or model_dir / "runs" / f"{args.size}{sfx}.json").resolve()
     dry = args.dry_run or args.force
     warnings: list[str] = []
     kind = ad.kind_of_file(model_dir / "adapter.py")
     image_only(kind, args.runtime)
+    if runtimes.is_cpu(args.runtime):
+        from . import cpurun
+
+        return cpurun.cmd_run(args, model_dir, model_id, kind, log, finish)
     llm = kind == "llm"
     gen = kind == "generation"
     failed_log = out.with_name(f"{args.size}{sfx}.failed.log")
     runtime_block: dict | None = None
 
-    on = f" on {args.runtime}" if args.runtime != trt.DEFAULT else ""
+    on = f" on {args.runtime}" if args.runtime != runtimes.DEFAULT else ""
     log(f"mtr run {model_id} / {args.size}{on}, protocol {protocol.PROTOCOL_VERSION}")
     log(f"command: {shlex.join(sys.argv)}", echo=False)
     try:

@@ -73,14 +73,21 @@ def cmd_clean(argv: list[str], log: Log) -> int:
 
     targets: list[Path] = []
     checked: list[str] = []
+    from .runtimes import split_name
+
     for f in sorted((model_dir / ".check").glob("*.json")):
+        if (split_name(f.name) or ("", "", "x"))[2]:
+            continue  # a language model's <size>.reference.json, not a check
         check = json.loads(f.read_text())
         checked.append(f.stem)
         targets += [Path(w) for w in check.get("weight_files", [])]
     from . import trt
 
-    # TensorRT engines and ONNX files of every size (trt.py), kept outside the checkout.
+    from . import ort
+
+    # TensorRT engines and ONNX files of every size (trt.py), and the CPU rows' ONNX files (ort.py), kept outside the checkout.
     targets.append(trt.model_root(model_dir.name))
+    targets.append(ort.model_root(model_dir.name))
     venv = model_dir / ".venv"
     if record.project_dir(model_dir) == model_dir and venv.is_dir():
         targets.append(venv)

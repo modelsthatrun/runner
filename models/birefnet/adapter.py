@@ -14,6 +14,7 @@ import torch
 from torchvision import transforms
 from transformers import AutoModelForImageSegmentation
 
+from mtr_measure import device
 from mtr_measure.predictions import Alpha
 
 REPOS = {
@@ -33,7 +34,7 @@ def load(size, precision):
     torch.set_float32_matmul_precision("high")
     repo, revision, side = REPOS[size]
     model = AutoModelForImageSegmentation.from_pretrained(repo, revision=revision, trust_remote_code=True)
-    model.to("cuda").eval()
+    model.to(device()).eval()
     dtype = torch.float16 if precision == "fp16" else torch.float32
     model.to(dtype)
     transform = transforms.Compose([
@@ -46,7 +47,7 @@ def load(size, precision):
 
 @torch.no_grad()
 def predict(m, x):
-    images = m["transform"](x).unsqueeze(0).to("cuda", dtype=m["dtype"])
+    images = m["transform"](x).unsqueeze(0).to(device(), dtype=m["dtype"])
     pred = m["model"](images)[-1].sigmoid().cpu()[0].squeeze()
     return transforms.ToPILImage()(pred.float()).resize(x.size)
 

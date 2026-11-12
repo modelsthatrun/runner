@@ -11,6 +11,8 @@ from pathlib import Path
 import torch
 from huggingface_hub import hf_hub_download
 
+from mtr_measure import device
+
 KIND = "generation"
 TASK = "text-to-image"
 SIZES = ["1.6b", "4.8b"]
@@ -38,7 +40,7 @@ def load(size: str, precision: str):
 
     repo, revision = REPOS[size]
     pipe = SanaPipeline.from_pretrained(repo, revision=revision, torch_dtype=DTYPES[precision])
-    pipe.to("cuda")
+    pipe.to(device())
     pipe.text_encoder.to(DTYPES[precision])
     return pipe
 

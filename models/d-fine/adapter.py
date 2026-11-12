@@ -12,6 +12,11 @@ released checkpoint, then `trtexec --onnx=model.onnx --saveEngine=model.engine -
 reproduces with TensorRT's Python API (mtr_measure/trt.py). tools/inference/trt_inf.py's TRTInference
 runs the engine, with the same 640x640 resize as torch_inf.py. The export puts the postprocessor in the
 graph, so the engine returns what forward() and postprocess() return together.
+
+Its ONNX Runtime row on the CPU follows tools/inference/onnx_inf.py: the same export, a default InferenceSession, and
+process_image()'s letterbox to 640x640 on a black canvas (resize_with_aspect_ratio), with the boxes mapped back to the
+photo as its draw() does. That letterbox differs from torch_inf.py's 640x640 stretch, so the row's output is compared
+with the PyTorch row's with the looser ONNX Runtime tolerance.
 """
 
 import importlib.util
@@ -23,7 +28,7 @@ import torch
 import torch.nn as nn
 import torchvision.transforms as T
 
-from mtr_measure import weights_dir
+from mtr_measure import device, weights_dir
 from mtr_measure.predictions import Boxes
 
 REPO_URL = "https://github.com/Peterande/D-FINE.git"
@@ -40,6 +45,8 @@ INPUT = {s: "640x640" for s in SIZES}
 THRESHOLD = 0.4
 # The README's TensorRT step: trtexec with --fp16 and nothing else.
 TENSORRT = {"precision": "fp16", "builder": {"fp16": True}, "status": "runs-as-is"}
+# tools/inference/onnx_inf.py letterboxes to 640x640.
+ONNXRUNTIME = {"status": "runs-as-is", "input": "640x640"}
 
 
 def package_version():
@@ -78,7 +85,7 @@ def load(size, precision):
         def forward(self, images, orig_target_sizes):
             return self.postprocessor(self.model(images), orig_target_sizes)
 
-    return {"net": Model().to("cuda"), "transforms": T.Compose([T.Resize((640, 640)), T.ToTensor()]), "names": coco_names()}
+    return {"net": Model().to(device()), "transforms": T.Compose([T.Resize((640, 640)), T.ToTensor()]), "names": coco_names()}
 
 
 def coco_names():
@@ -124,20 +131,51 @@ def trt_call(m, x):
     return out["labels"][0].cpu(), out["boxes"][0].cpu(), out["scores"][0].cpu()
 
 
+def onnx_inf():
+    checkout()
+    spec = importlib.util.spec_from_file_location("dfine_onnx_inf", REPO / "tools" / "inference" / "onnx_inf.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_onnx(size, onnx):
+    """The ONNX file in a session as tools/inference/onnx_inf.py's main() makes it: ort.InferenceSession(args.onnx)."""
+    inf = onnx_inf()
+    return {"sess": inf.ort.InferenceSession(str(onnx)), "inf": inf, "names": coco_names()}
+
+
+def onnx_session(m):
+    return m["sess"]
+
+
+def ort_call(m, x):
+    # onnx_inf.py's process_image(): the letterboxed image and its own size into the session, then draw()'s mapping of
+    # the boxes back to the photo.
+    resized, ratio, pad_w, pad_h = m["inf"].resize_with_aspect_ratio(x, 640)
+    orig_size = torch.tensor([[resized.size[1], resized.size[0]]])
+    im_data = T.Compose([T.ToTensor()])(resized).unsqueeze(0)
+    labels, boxes, scores = m["sess"].run(output_names=None, input_feed={"images": im_data.numpy(), "orig_target_sizes": orig_size.numpy()})
+    boxes = (torch.from_numpy(boxes[0]) - torch.tensor([pad_w, pad_h, pad_w, pad_h])) / ratio
+    return torch.from_numpy(labels[0]), boxes, torch.from_numpy(scores[0])
+
+
 @torch.inference_mode()
 def eval_predict(m, x):
     # The top 300 boxes with every score, as the repository's COCO evaluation scores them.
     if "trt" in m:
         return trt_call(m, x)
+    if "sess" in m:
+        return ort_call(m, x)
     w, h = x.size
-    labels, boxes, scores = m["net"](m["transforms"](x).unsqueeze(0).to("cuda"), torch.tensor([[w, h]], device="cuda"))
+    labels, boxes, scores = m["net"](m["transforms"](x).unsqueeze(0).to(device()), torch.tensor([[w, h]], device=device()))
     return labels[0].cpu(), boxes[0].cpu(), scores[0].cpu()
 
 
 # predict() in the three phases `mtr profile` times apart: the tensor on the GPU, the network, and the decoded result.
 @torch.inference_mode()
 def preprocess(m, x):
-    return m["transforms"](x).unsqueeze(0).to("cuda")
+    return m["transforms"](x).unsqueeze(0).to(device())
 
 
 @torch.inference_mode()
@@ -148,7 +186,7 @@ def forward(m, images):
 @torch.inference_mode()
 def postprocess(m, raw, x):
     w, h = x.size
-    labels, boxes, scores = m["net"].postprocessor(raw, torch.tensor([[w, h]], device="cuda"))
+    labels, boxes, scores = m["net"].postprocessor(raw, torch.tensor([[w, h]], device=device()))
     labels, boxes, scores = labels[0].cpu(), boxes[0].cpu(), scores[0].cpu()
     keep = scores > THRESHOLD
     return labels[keep], boxes[keep], scores[keep]
@@ -156,8 +194,8 @@ def postprocess(m, raw, x):
 
 @torch.inference_mode()
 def predict(m, x):
-    if "trt" in m:
-        labels, boxes, scores = trt_call(m, x)
+    if "trt" in m or "sess" in m:
+        labels, boxes, scores = trt_call(m, x) if "trt" in m else ort_call(m, x)
         keep = scores > THRESHOLD
         return labels[keep], boxes[keep], scores[keep]
     return postprocess(m, forward(m, preprocess(m, x)), x)

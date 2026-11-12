@@ -31,6 +31,9 @@ MAX_POLL_GAP_MS = 10.0
 # Other programs' share of all logical CPUs, before and during a run (cpu.py). An idle desktop used 1-5%,
 # with one-second spikes to 10%, on the reference machine; a build used most of the CPU.
 CPU_BUSY_LIMIT = 0.15
+# A CPU row computes on the CPU, so other programs slow it far more than they slow a GPU row: at most this share of all
+# logical CPUs before and during its runs. Provisional, as MAX_SPREAD was: set from the first batch of CPU rows.
+CPU_BUSY_LIMIT_CPU = 0.05
 
 
 @dataclass
@@ -135,4 +138,39 @@ def after_run(before: Samples, after: Samples, during: Samples, cpu_others: floa
         if cpu_others > CPU_BUSY_LIMIT:
             r.error("CPU_BUSY", f"Other programs used {cpu_others:.0%} of the CPU during the run, above the {CPU_BUSY_LIMIT:.0%} limit, "
                                 "so the timings are unreliable. Measure again.")
+    return r
+
+
+def before_cpu_run(cpu_others: float, available_mib: int, need_mib: int) -> Report:
+    """Before a CPU row's run: the CPU is quiet and the model's memory is free. No GPU check and no pause: the GPU is hidden."""
+    from .cpurun import RAM_MARGIN, RAM_MARGIN_MIB
+
+    r = Report()
+    r.lines.append(f"other programs' cpu before the run: {cpu_others:.1%} of all logical CPUs; {available_mib} MiB of memory free")
+    if cpu_others > CPU_BUSY_LIMIT_CPU:
+        r.error("CPU_BUSY", f"Other programs used {cpu_others:.0%} of the CPU while idle, above the {CPU_BUSY_LIMIT_CPU:.0%} a CPU row allows.")
+    want = round(need_mib * RAM_MARGIN + RAM_MARGIN_MIB) if need_mib else 0
+    if want and available_mib < want:
+        r.error("RAM_LOW", f"{available_mib} MiB of memory is free, and the run needs about {want} MiB so that nothing is swapped out.")
+    return r
+
+
+def after_cpu_run(cpu_others: float, throttle_before: int | None, throttle_after: int | None, memory: dict, steady: float | None) -> Report:
+    """After a CPU row's run: the CPU stayed quiet and cool, the worker stayed in memory, and its calls stayed steady."""
+    from .protocol import CPU_STEADY_LIMIT
+
+    r = Report()
+    r.lines.append(f"other programs' cpu during the run: {cpu_others:.1%} of all logical CPUs")
+    if cpu_others > CPU_BUSY_LIMIT_CPU:
+        r.error("CPU_BUSY", f"Other programs used {cpu_others:.0%} of the CPU during the run, above the {CPU_BUSY_LIMIT_CPU:.0%} a CPU row "
+                            "allows, so the timings are unreliable. Measure again.")
+    if throttle_before is not None and throttle_after is not None and throttle_after > throttle_before:
+        r.error("THROTTLED", f"The CPU throttled for heat {throttle_after - throttle_before} time(s) during the run.")
+    if memory.get("VmSwap", 0) > 0:
+        r.error("RAM_LOW", f"{memory['VmSwap'] // 1024} MiB of the worker's memory was swapped out during the run.")
+    if steady is not None:
+        r.lines.append(f"steadiness: the two halves of the timed calls differ by {steady:.1%}")
+        if steady > CPU_STEADY_LIMIT:
+            r.error("UNSTEADY", f"The second half of the timed calls differs from the first by {steady:.1%}, above the "
+                                f"{CPU_STEADY_LIMIT:.0%} the protocol allows: the CPU changed speed during the run.")
     return r

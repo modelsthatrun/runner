@@ -11,7 +11,8 @@ Required, at module level (kind "image", the default):
     PRECISIONS: list[str]         what the official code supports: "fp16", "fp32", "bf16"
     PACKAGE: str                  installed distribution whose version is recorded
     INPUT: dict[str, str]         official default input resolution per size, "WxH"
-    load(size, precision)         returns the loaded model, on the GPU
+    load(size, precision)         returns the loaded model, on device() (mtr_measure.device(): "cuda", or "cpu"
+                                  for a CPU row, which always asks for fp32)
     predict(model, x)             one call from input to output, as a user's code would make it
     weight_files(size)            files that load() read, main checkpoint first
 
@@ -31,6 +32,8 @@ Optional:
     postprocess(model, raw, x)    predict(model, x) must return postprocess(model, forward(model,
                                   preprocess(model, x)), x). The split needs all three: with fewer
                                   there is none, and the functions are the adapter's own helpers
+    CPU_UNSUPPORTED: str          why the official code can't run on a CPU (a CUDA-only kernel, say). A CPU check
+                                  still tries, and records the reason only if it fails
     phase_times(model, out)       instead of those three, when the official package times its own phases:
                                   {"preprocess": ms, "forward": ms, "postprocess": ms} for the call that
                                   returned `out`, each phase closed by a synchronize
@@ -90,6 +93,8 @@ LLM_PROTOCOL_FLAGS = {
     "-b", "--batch-size", "-ub", "--ubatch-size", "-fa", "--flash-attn", "-ctk", "--cache-type-k",
     "-ctv", "--cache-type-v", "-t", "--threads", "-fit", "--fit", "-m", "--model", "-hf", "--hf-repo",
     "--no-mmap", "--mlock", "-lv", "--verbosity", "--log-verbosity", "--reasoning-budget", "-sm", "--split-mode", "-ts", "--tensor-split", "--n-cpu-moe", "-cmoe", "--cpu-moe",
+    "-dev", "--device", "-tb", "--threads-batch", "--op-offload", "--no-op-offload", "--numa", "--poll", "-C", "--cpu-mask",
+    "-Cr", "--cpu-range", "-Cb", "--cpu-mask-batch", "-Crb", "--cpu-range-batch", "--prio", "--prio-batch",
 }
 
 
@@ -107,6 +112,12 @@ def weights_dir(model_id: str) -> Path:
     d = root / model_id
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+def device() -> str:
+    """The device the tool runs this call on: "cuda", or "cpu" for a CPU row (docs/protocol.md, "CPU rows"). Adapters
+    put their model and tensors on device() instead of a literal "cuda", so the same official code runs on either."""
+    return "cpu" if os.environ.get("MTR_DEVICE") == "cpu" else "cuda"
 
 
 def load_adapter(path: Path) -> ModuleType:
@@ -258,8 +269,11 @@ def prepare_input(a: Any, paths: list[Path]) -> Any:
 def input_size(a: Any, size: str, x: Any, runtime: str | None = None) -> str:
     if kind(a) == "generation":
         return x.resolution
-    # An engine's input is fixed when it is exported, and may differ from the PyTorch row's (TENSORRT["input"]).
-    fixed = (getattr(a, "TENSORRT", None) or {}).get("input") if runtime == "tensorrt" else None
+    # An engine's input is fixed when it is exported, and may differ from the PyTorch row's (TENSORRT["input"]); the
+    # official ONNX Runtime code may feed another input too (ONNXRUNTIME["input"]).
+    fixed = None
+    if runtime in ("tensorrt", "onnxruntime-cpu"):
+        fixed = (getattr(a, "TENSORRT" if runtime == "tensorrt" else "ONNXRUNTIME", None) or {}).get("input")
     if isinstance(fixed, dict):
         fixed = fixed.get(size)
     value = fixed or (a.input_size(size, x) if hasattr(a, "input_size") else a.INPUT.get(size))

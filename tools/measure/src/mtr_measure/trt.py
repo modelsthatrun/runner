@@ -54,8 +54,7 @@ from typing import Any
 
 from .errors import MeasureError
 
-RUNTIMES = ("pytorch-cuda", "tensorrt")
-DEFAULT = "pytorch-cuda"
+from .runtimes import DEFAULT, RUNTIMES  # noqa: F401  (older imports read them from here)
 # What trtexec sets that the API leaves elsewhere: --avgTiming defaults to 8 there, and dynamic dimensions without
 # --shapes become 1 (kDEFAULT_DIMENSION).
 TRTEXEC_AVG_TIMING = 8
@@ -66,7 +65,9 @@ STATUSES = ("runs-as-is", "runs-with-fixes")
 
 def suffix(runtime: str) -> str:
     """The infix every per-size file of a runtime row carries: runs/<size>.tensorrt.json, evals/<size>/<b>.tensorrt.json."""
-    return "" if runtime == DEFAULT else f".{runtime}"
+    from .runtimes import suffix as runtime_suffix
+
+    return runtime_suffix(runtime)
 
 
 def check_runtime(runtime: str) -> str:

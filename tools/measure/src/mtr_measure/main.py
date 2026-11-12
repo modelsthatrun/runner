@@ -71,9 +71,13 @@ def model_command(cmd: str, model_dir: Path, rest: list[str]) -> list[str]:
     # lock_sha256 and mark the checkout as modified. A model's first check creates its lock.
     if lock.is_file():
         uv.append("--frozen")
-    # A TensorRT row needs the model's optional `tensorrt` group (trt.py). PyTorch rows never install it.
-    if runtime_of(rest) == "tensorrt":
-        uv += ["--group", "tensorrt"]
+    # A TensorRT row needs the model's optional `tensorrt` group (trt.py), and an ONNX Runtime row its `onnxruntime` group
+    # (ort.py). PyTorch rows never install them.
+    from .runtimes import UV_GROUPS
+
+    group = UV_GROUPS.get(runtime_of(rest) or "")
+    if group:
+        uv += ["--group", group]
     module = "mtr_measure.outputs" if cmd == "outputs" else "mtr_measure"
     args = [str(model_dir)] + rest
     return [*uv, "python", "-m", module, *([] if cmd == "outputs" else [cmd]), *args]
@@ -177,8 +181,11 @@ def adapters() -> list[Path]:
 
 
 def local_runs(model_dir: Path) -> list[str]:
+    """Sizes with a record of the default runtime. Sizes may hold dots (1.6b), so names are read by runtimes.split_name."""
+    from .runtimes import DEFAULT, record_files
+
     runs = model_dir / "runs"
-    return sorted(f.name[: -len(".json")] for f in runs.glob("*.json") if f.name.count(".") == 1) if runs.is_dir() else []
+    return sorted(size for _, size, rt in record_files([f.name for f in runs.glob("*.json")]) if rt == DEFAULT) if runs.is_dir() else []
 
 
 def cmd_models(argv: list[str]) -> int:
