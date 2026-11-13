@@ -40,9 +40,10 @@ CPU_CHECK_WARMUP = 2
 CPU_CHECK_TIMED = 2
 # The longest call a CPU row times. A checkpoint whose call runs past it gets a record that says so instead of a number.
 CPU_CALL_LIMIT_S = 300.0
-# Warm-up goes on until it has lasted this long, so a desktop CPU's short boost above its sustained power limit is over
-# before the timed calls start. Provisional: set from the first batch, as MAX_SPREAD was.
-CPU_WARMUP_MIN_S = 60.0
+# Warm-up goes on until it has lasted this long before the timed calls start. Set from the first batch, as MAX_SPREAD
+# was: on the reference machine the cores held their all-core clock for minutes of calls, and a call's time settled
+# within about 2% after 30 s of them.
+CPU_WARMUP_MIN_S = 30.0
 # Largest allowed |median of the first half of the timed calls - median of the second half| / median. A run whose
 # calls drift (a clock or power state changing) is refused instead of averaged.
 CPU_STEADY_LIMIT = 0.05

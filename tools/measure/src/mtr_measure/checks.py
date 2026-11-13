@@ -32,8 +32,9 @@ MAX_POLL_GAP_MS = 10.0
 # with one-second spikes to 10%, on the reference machine; a build used most of the CPU.
 CPU_BUSY_LIMIT = 0.15
 # A CPU row computes on the CPU, so other programs slow it far more than they slow a GPU row: at most this share of all
-# logical CPUs before and during its runs. Provisional, as MAX_SPREAD was: set from the first batch of CPU rows.
-CPU_BUSY_LIMIT_CPU = 0.05
+# logical CPUs before and during its runs. Set from the first batch of CPU rows: a quiet desktop used 4-6.5% across a
+# run, and one more busy logical CPU adds 1/16 of the reference machine's, which takes a run past this.
+CPU_BUSY_LIMIT_CPU = 0.10
 
 
 @dataclass

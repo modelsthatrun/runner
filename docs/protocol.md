@@ -199,9 +199,11 @@ A CPU row is a checkpoint run with no GPU at all: the same official code, with t
   | text-to-image | 2 | 5 |
   | language model | 1 | 5 requests (512 + 256 tokens, 8K context) |
 
-- **Warm-up time.** Warm-up goes on until it has lasted at least `CPU_WARMUP_MIN_S` (60 s, provisional), so a desktop CPU's short boost above its sustained power limit is over before the timed calls start.
+- **Warm-up time.** Warm-up goes on until it has lasted at least `CPU_WARMUP_MIN_S` (30 s). On the reference machine the cores held their all-core clock for minutes of calls, and a call's time settled within about 2% after 30 s of them.
 - **Steady calls.** If the median of the first half of the timed calls differs from the second half's by more than 5%, the run fails (`UNSTEADY`). So does one during which the CPU throttled for heat (`THROTTLED`).
-- **A quiet machine.** Other programs may use at most 5% of all logical CPUs before and during each run (`CPU_BUSY`; provisional, set from the first batch). Free memory must hold what the check saw the worker use, with room to spare, and nothing of the worker may be swapped out (`RAM_LOW`).
+- **A quiet machine.** Other programs may use at most 10% of all logical CPUs before and during each run (`CPU_BUSY`). A quiet desktop used 4–6.5% across a run on the reference machine, and one more busy logical CPU takes a run past the limit.
+  - A background program that keeps one core busy in bursts slows every call while it runs, even when a run's average stays under the limit. On the reference machine a telemetry daemon did this for about 30 s every minute or two, and a call's time alternated between two levels about 15% apart, so the three runs spread too far (`VARIANCE`). Stop such a program for the runs, if its owner agrees.
+  - Free memory must hold what the check saw the worker use, with room to spare, and nothing of the worker may be swapped out (`RAM_LOW`).
 - **Nothing is paused.** A CPU row holds no GPU, so the pause hooks don't run. `mtr queue run` measures the GPU rows inside one pause, then the CPU rows after it.
 - **Memory.** `ram_peak_mib` is the peak resident set (`VmHWM`) of the process that ran the model, read from `/proc`: loading included, and for llama-server the mapped GGUF file's pages too. Each run's is its own process's, and the record keeps the highest.
 

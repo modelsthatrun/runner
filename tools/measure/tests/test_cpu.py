@@ -133,7 +133,8 @@ def test_keypoints_match(tmp_path):
 
 def test_a_cpu_run_needs_a_quiet_cool_steady_machine():
     assert checks.before_cpu_run(0.02, 50_000, 1000).ok()
-    assert checks.before_cpu_run(0.08, 50_000, 1000).codes == ["CPU_BUSY"]
+    assert checks.before_cpu_run(0.065, 50_000, 1000).ok()  # a quiet desktop on the reference machine
+    assert checks.before_cpu_run(0.12, 50_000, 1000).codes == ["CPU_BUSY"]  # ... and one more busy logical CPU
     assert checks.before_cpu_run(0.02, 1500, 1000).codes == ["RAM_LOW"]
     assert checks.after_cpu_run(0.02, 3, 3, {"VmSwap": 0}, 0.01).ok()
     assert checks.after_cpu_run(0.02, 3, 4, {"VmSwap": 0}, 0.01).codes == ["THROTTLED"]
