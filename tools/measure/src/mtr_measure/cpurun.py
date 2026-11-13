@@ -434,8 +434,12 @@ def cmd_run(args, model_dir: Path, model_id: str, kind: str, log, finish) -> int
                 if not args.force:
                     raise MeasureError(post.codes[0], post.errors[0])
             times = worker["times_ms"]
+            caller = ""
+            if runtime == "onnxruntime-cpu":
+                cc = worker.get("caller_cpus")
+                caller = f", calling thread on CPUs {','.join(map(str, cc))}" if cc else ", calling thread not pinned (the session pinned no worker)"
             log(f"run {i + 1}: median {statistics.median(times):.3f} ms, {len(times)} timed calls after {worker['warmup']} warm-up, "
-                f"ram peak {hostmem.peak_mib(worker['memory'])} MiB, {worker['threads']} threads, other cpu {others:.1%}")
+                f"ram peak {hostmem.peak_mib(worker['memory'])} MiB, {worker['threads']} threads, other cpu {others:.1%}{caller}")
             log(f"run {i + 1} timed iterations (ms): " + " ".join(f"{t:.3f}" for t in times), echo=False)
             runs.append({"worker": worker})
     except MeasureError as e:

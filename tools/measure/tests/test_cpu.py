@@ -321,3 +321,16 @@ def test_a_busy_machine_never_records_a_row_as_over_the_limit(repo, capsys, monk
     monkeypatch.setattr(cpurun.cpu.Window, "others", lambda self: next(others))
     assert cli.main(["run", str(model), "--size", "s", "--runtime", "pytorch-cpu", "--input", str(repo / "timing.jpg")]) == errors.exit_code("CPU_BUSY")
     assert not (model / "runs" / "s.pytorch-cpu.json").exists()
+
+
+def test_onnx_runtimes_calling_thread_goes_to_the_core_its_pool_leaves_free():
+    from mtr_measure import hostmem, ort
+
+    assert hostmem.cpu_list("0,8") == {0, 8} and hostmem.cpu_list("0-3,8-11") == {0, 1, 2, 3, 8, 9, 10, 11}
+    cores = [{c, c + 8} for c in range(8)]
+    allowed = set(range(16))
+    workers = [{c, c + 8} for c in range(1, 8)]  # ONNX Runtime's default pool: one worker per core but the first
+    assert ort.free_core(workers, cores, allowed) == {0, 8}
+    assert ort.free_core([], cores, allowed) is None  # a session with explicit threads pins nothing: leave it be
+    assert ort.free_core([{c, c + 8} for c in range(8)], cores, allowed) is None
+    assert ort.free_core(workers, cores, allowed - {0}) is None  # never widen the process's own mask

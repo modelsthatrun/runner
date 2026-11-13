@@ -67,6 +67,29 @@ def cores() -> tuple[int, int]:
     return (len(physical) or n), (logical or n)
 
 
+def cpu_list(text: str) -> set[int]:
+    """A kernel CPU list such as "0,8" or "0-3,8-11" as a set of logical CPUs."""
+    out: set[int] = set()
+    for part in text.strip().split(","):
+        if "-" in part:
+            lo, hi = part.split("-")
+            out.update(range(int(lo), int(hi) + 1))
+        elif part:
+            out.add(int(part))
+    return out
+
+
+def physical_cores() -> list[set[int]]:
+    """The logical CPUs of each physical core (its hyperthread siblings), lowest first."""
+    seen: dict[frozenset[int], None] = {}
+    for f in glob.glob("/sys/devices/system/cpu/cpu[0-9]*/topology/thread_siblings_list"):
+        try:
+            seen[frozenset(cpu_list(Path(f).read_text()))] = None
+        except (OSError, ValueError):
+            pass
+    return sorted((set(c) for c in seen), key=min)
+
+
 def throttle_count() -> int | None:
     """How many times the CPU's cores and package have throttled for heat since boot, or None where Linux doesn't say."""
     files = glob.glob("/sys/devices/system/cpu/cpu[0-9]*/thermal_throttle/*_throttle_count")

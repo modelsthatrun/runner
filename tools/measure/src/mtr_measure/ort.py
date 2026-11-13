@@ -168,6 +168,54 @@ def check_session(sess: Any) -> int:
     return n or hostmem.cores()[0]
 
 
+def free_core(pinned: list[set[int]], cores: list[set[int]], allowed: set[int]) -> set[int] | None:
+    """The logical CPUs of the first physical core that no pinned thread holds, or None when no thread is pinned or
+    every core is held."""
+    if not pinned:
+        return None
+    held = set().union(*pinned)
+    for core in cores:
+        if core <= allowed and not core & held:
+            return set(core)
+    return None
+
+
+def pin_caller() -> list[int] | None:
+    """Keep the calling thread on the physical core ONNX Runtime's default thread pool leaves free.
+
+    With its default threads, ONNX Runtime pins its intra-op workers one per physical core and leaves one core for the
+    thread that calls run(), which computes in every parallel operator too. It doesn't pin that thread. When the
+    scheduler moves it onto a worker's core, the two share the core and every operator waits on them: a call then takes
+    about 40% longer, for seconds at a time, depending on what else runs on the machine and not on the model. So the
+    tool pins the calling thread, and only it, to the core the pool left free. Call it after the first call, so the
+    pools that start then (ONNX Runtime's, and torch's for pre- and post-processing) keep their own placement.
+    Returns the calling thread's CPUs, or None when the session pinned nothing (a session made with explicit threads).
+    """
+    import os
+    import threading
+
+    from . import hostmem
+
+    me = threading.get_native_id()
+    allowed = os.sched_getaffinity(0)
+    pinned = []
+    for t in Path("/proc/self/task").iterdir():
+        tid = int(t.name)
+        if tid == me:
+            continue
+        try:
+            cpus = os.sched_getaffinity(tid)
+        except OSError:  # the thread ended
+            continue
+        if cpus < allowed:
+            pinned.append(cpus)
+    core = free_core(pinned, hostmem.physical_cores(), allowed)
+    if core is None:
+        return None
+    os.sched_setaffinity(0, core)  # pid 0 is the calling thread alone
+    return sorted(core)
+
+
 def run_prepare(spec: dict, log=None) -> dict:
     """prepare() in its own process, in the model's environment, with the GPU hidden. Its lines go to `log` too."""
     from .cpurun import worker_env

@@ -163,6 +163,7 @@ def run(spec: dict) -> dict:
     output = "n/a"
     half: dict[str, int] = {}
     probed_ops = None
+    caller_cpus = None
     warm_start = time.perf_counter()
     warmup_min_s = float(spec.get("warmup_min_s", 0))
     # A PyTorch CPU row's second warm-up call runs under the precision probe. Not the first: a package may trace or
@@ -186,6 +187,10 @@ def run(spec: dict) -> dict:
         sync()
         if i == 0:
             output = describe(out)
+            if runtime == "onnxruntime-cpu":
+                from . import ort
+
+                caller_cpus = ort.pin_caller()
         if i == probe_at:
             if half:
                 ops = ", ".join(f"{k} ({v})" for k, v in sorted(half.items(), key=lambda kv: -kv[1])[:6])
@@ -241,6 +246,7 @@ def run(spec: dict) -> dict:
         if runtime == "onnxruntime-cpu":
             result["runtime_version"] = onnxruntime_version()
             result["onnx"] = spec["onnx"]
+            result["caller_cpus"] = caller_cpus
         else:
             result["runtime_version"] = torch.__version__.split("+")[0]
     if gen:
