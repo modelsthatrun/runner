@@ -325,7 +325,8 @@ def estimate_s(check: dict) -> float:
         return load + protocol.CPU_CALL_LIMIT_S + 60
     warmup, timed = calls_for(check.get("kind", "image"), check)
     call = float(check.get("approx_ms") or 0) / 1000
-    per_run = WORKER_START_S + BASELINE_S + QUEUE_BASELINE_S + load + max(protocol.CPU_WARMUP_MIN_S, warmup * call) + timed * call
+    per_run = (WORKER_START_S + BASELINE_S + QUEUE_BASELINE_S + load + max(protocol.CPU_WARMUP_MIN_S, warmup * call)
+               + max(protocol.CPU_TIMED_MIN_S, timed * call))
     return protocol.RUNS * per_run
 
 
@@ -369,7 +370,8 @@ def cmd_run(args, model_dir: Path, model_id: str, kind: str, log, finish) -> int
     n = threads()
     facts = machine.cpu_facts()
     spec = {"adapter": str(model_dir / "adapter.py"), "size": args.size, "inputs": [str(f) for f in inputs], "warmup": warmup,
-            "timed": timed, "runtime": runtime, "threads": n, "warmup_min_s": protocol.CPU_WARMUP_MIN_S}
+            "timed": timed, "runtime": runtime, "threads": n, "warmup_min_s": protocol.CPU_WARMUP_MIN_S,
+            "timed_min_s": protocol.CPU_TIMED_MIN_S}
     if runtime == "onnxruntime-cpu" and check.get("not_timed"):
         # Its ONNX file computes in half precision: a property of the file, which a run confirms by inspecting it again.
         from . import ort
@@ -393,7 +395,7 @@ def cmd_run(args, model_dir: Path, model_id: str, kind: str, log, finish) -> int
     log(f"cpu: {facts['cpu']}, {facts['cpu_cores']} cores, {facts['cpu_threads']} logical CPUs, {n} threads, "
         f"{facts['ram_total_mib']} MiB of memory" + (f", sustained power limit {facts['cpu_power_limit_w']:g} W" if facts.get("cpu_power_limit_w") else ""))
     log(f"{protocol.RUNS} runs, each a fresh process: load, at least {warmup} warm-up calls and {protocol.CPU_WARMUP_MIN_S:.0f} s of them, "
-        f"then {timed} timed calls")
+        f"then at least {timed} timed calls and {protocol.CPU_TIMED_MIN_S:.0f} s of them")
     need = int(check.get("approx_ram_mib") or 0)
     runs: list[dict] = []
     clean = True

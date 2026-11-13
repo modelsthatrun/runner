@@ -200,13 +200,18 @@ def run(spec: dict) -> dict:
         raise MeasureError("ADAPTER_INTERFACE", f"The adapter declares CPU_UNSUPPORTED, but the call ran on the CPU. Remove the declaration")
 
     times_ms: list[float] = []
-    for n in range(spec["timed"]):
+    # A CPU row's timed calls also last at least timed_min_s, so a fast model's median covers its slow stretches too.
+    timed_min_s = float(spec.get("timed_min_s", 0))
+    timed_start = time.perf_counter()
+    n = 0
+    while n < int(spec["timed"]) or time.perf_counter() - timed_start < timed_min_s:
         beat("timed", n)
         sync()
         t0 = time.perf_counter()
         a.predict(model, x)
         sync()
         times_ms.append((time.perf_counter() - t0) * 1000)
+        n += 1
 
     result = {
         "precision": precision,

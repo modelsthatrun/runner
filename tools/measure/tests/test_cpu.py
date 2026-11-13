@@ -149,7 +149,7 @@ def test_calls_and_estimates_follow_the_check():
     assert cpurun.calls_for("image", {"approx_ms": 20_000}) == (protocol.CPU_SLOW_WARMUP, protocol.CPU_SLOW_TIMED)
     assert cpurun.calls_for("generation", {"approx_ms": 1000}) == (protocol.CPU_GEN_WARMUP, protocol.CPU_GEN_TIMED)
     fast = cpurun.estimate_s({"kind": "image", "runtime": "pytorch-cpu", "approx_ms": 100, "load_s": 2})
-    assert fast > protocol.RUNS * protocol.CPU_WARMUP_MIN_S
+    assert fast > protocol.RUNS * (protocol.CPU_WARMUP_MIN_S + protocol.CPU_TIMED_MIN_S)  # both floors, for a fast call
     assert runqueue.estimate_s({"kind": "image", "runtime": "pytorch-cpu", "approx_ms": 100, "load_s": 2}) == fast
 
 

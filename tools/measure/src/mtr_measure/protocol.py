@@ -44,6 +44,10 @@ CPU_CALL_LIMIT_S = 300.0
 # was: on the reference machine the cores held their all-core clock for minutes of calls, and a call's time settled
 # within about 2% after 30 s of them.
 CPU_WARMUP_MIN_S = 30.0
+# Timed calls go on until they have lasted this long too. On the reference machine a fast model's call alternated
+# between two levels about 15% apart, in stretches of a second or two, even on a quiet machine: YOLOv8 n's 30 calls of
+# 23 ms failed the steadiness check in 28% of windows, while the medians of 30-second windows stayed within 1.3%.
+CPU_TIMED_MIN_S = 30.0
 # Largest allowed |median of the first half of the timed calls - median of the second half| / median. A run whose
 # calls drift (a clock or power state changing) is refused instead of averaged.
 CPU_STEADY_LIMIT = 0.05
