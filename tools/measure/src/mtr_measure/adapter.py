@@ -128,7 +128,10 @@ def load_adapter(path: Path) -> ModuleType:
     spec = importlib.util.spec_from_file_location("mtr_adapter", path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # Run the file as it is now, never a cached .pyc. Python trusts __pycache__ while the source's size and
+    # whole-second mtime match, so an edit of the same length within a second would run the old code while
+    # records name the new file's sha256 (record.fingerprint).
+    exec(compile(path.read_bytes(), str(path), "exec", dont_inherit=True), module.__dict__)
     check_interface(module)
     return module
 

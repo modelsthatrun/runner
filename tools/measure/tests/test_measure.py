@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+import os
+import sys
 import types
 from pathlib import Path
 
@@ -73,6 +75,24 @@ def test_load_adapter_from_file(tmp_path: Path):
     assert a.SIZES == ["s"]
     with pytest.raises(ad.AdapterError, match="No adapter"):
         ad.load_adapter(tmp_path / "missing.py")
+
+
+def test_load_adapter_runs_the_file_as_it_is_now_not_a_cached_pyc(tmp_path: Path, monkeypatch):
+    # Python would reuse __pycache__ for an edit of the same length with the same whole-second mtime, so the
+    # code that ran would differ from the adapter_sha256 a record names. Bytecode writing is forced on, because
+    # PYTHONDONTWRITEBYTECODE in the caller's shell would otherwise hide the case.
+    monkeypatch.setattr(sys, "dont_write_bytecode", False)
+    body = ("SIZES=['s']\nPRECISIONS=['fp32']\nPACKAGE='pytest'\nINPUT={'s':'1x1'}\nVALUE=%d\n"
+            "def load(size, precision): return 1\ndef predict(m, x): return x\ndef weight_files(size): return []\n")
+    path = tmp_path / "adapter.py"
+    path.write_text(body % 4)
+    stat = path.stat()
+    assert ad.load_adapter(path).VALUE == 4
+    path.write_text(body % 8)
+    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    assert path.stat().st_size == stat.st_size
+    assert ad.load_adapter(path).VALUE == 8
+    assert not (tmp_path / "__pycache__").exists(), "loading an adapter writes no bytecode next to it"
 
 
 def worker_result(times):
