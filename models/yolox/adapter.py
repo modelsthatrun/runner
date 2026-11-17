@@ -13,21 +13,15 @@ the README's 0.1.1rc0 release links (the current, non-legacy weights).
 COCO evaluation follows the README's `python -m yolox.tools.eval -n yolox-s -c yolox_s.pth --conf 0.001`:
 the same pre-processing, confidence 0.001, the experiment's NMS threshold of 0.65, per class.
 
-Its ONNX Runtime row on the CPU follows demo/ONNXRuntime/README.md: tools/export_onnx.py on the released
-checkpoint (`--output-name yolox_s.onnx -f exps/default/yolox_s.py -c yolox_s.pth`), then
-demo/ONNXRuntime/onnx_inference.py, which makes a default InferenceSession, letterboxes the image as
-the PyTorch demo does, decodes the grid with demo_postprocess() and applies multiclass_nms() at
-nms_thr 0.45 and score_thr 0.1.
+There is no ONNX Runtime row yet. The README's export, tools/export_onnx.py, calls torch.onnx._export,
+which the pinned torch no longer has, so the official path doesn't run here without a fix.
 """
 
-import importlib.util
-import os
 import subprocess
 import sys
 import urllib.request
 from pathlib import Path
 
-import numpy as np
 import torch
 
 from mtr_measure import device, weights_dir
@@ -49,8 +43,6 @@ NMS = 0.45
 # The README's COCO evaluation: --conf 0.001, with the experiment's nmsthre.
 EVAL_CONF = 0.001
 EVAL_NMS = 0.65
-# onnx_inference.py letterboxes to the same size as the PyTorch demo.
-ONNXRUNTIME = {"status": "runs-as-is"}
 
 
 def package_version():
@@ -144,70 +136,12 @@ def postprocess(m, raw, x):
 
 @torch.inference_mode()
 def predict(m, x):
-    if "sess" in m:
-        return ort_call(m, x, 0.1)
     return postprocess(m, forward(m, preprocess(m, x)), x)
 
 
 @torch.inference_mode()
 def eval_predict(m, x):
     return decode(m, x, forward(m, preprocess(m, x)), EVAL_CONF, EVAL_NMS, class_agnostic=False)
-
-
-def onnx_file(size, out):
-    """demo/ONNXRuntime/README.md's export, `python3 tools/export_onnx.py --output-name yolox_s.onnx -f
-    exps/default/yolox_s.py -c yolox_s.pth`, run as it is on the released checkpoint, writing into `out`."""
-    checkout()
-    ckpt = download(size)
-    out = Path(out)
-    name = f"yolox_{size}.onnx"
-    subprocess.run([sys.executable, str(REPO / "tools" / "export_onnx.py"), "--output-name", name, "-f", str(exp_file(size)),
-                    "-c", str(ckpt)], cwd=out, check=True, env={**os.environ, "PYTHONPATH": str(REPO)})
-    args = ["--output-name", name, "-f", f"exps/default/yolox_{size}.py", "-c", ckpt.name]
-    return {"onnx": out / name, "exporter": f"Megvii-BaseDetection/YOLOX@{COMMIT} tools/export_onnx.py", "args": args}
-
-
-def onnx_inference():
-    checkout()
-    spec = importlib.util.spec_from_file_location("yolox_onnx_inference", REPO / "demo" / "ONNXRuntime" / "onnx_inference.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def load_onnx(size, onnx):
-    """The ONNX file in a session as onnx_inference.py makes it: onnxruntime.InferenceSession(args.model)."""
-    checkout()
-    from yolox.data.datasets import COCO_CLASSES
-    from yolox.exp import get_exp
-
-    module = onnx_inference()
-    exp = get_exp(str(exp_file(size)), None)
-    return {"sess": module.onnxruntime.InferenceSession(str(onnx)), "inf": module, "size": exp.test_size, "names": list(COCO_CLASSES)}
-
-
-def onnx_session(m):
-    return m["sess"]
-
-
-def ort_call(m, x, score_thr):
-    # onnx_inference.py's main(), step for step, with score_thr as given (0.1 in the demo).
-    inf = m["inf"]
-    img, ratio = inf.preprocess(x, m["size"])
-    output = m["sess"].run(None, {m["sess"].get_inputs()[0].name: img[None, :, :, :]})
-    predictions = inf.demo_postprocess(output[0], m["size"])[0]
-    boxes = predictions[:, :4]
-    scores = predictions[:, 4:5] * predictions[:, 5:]
-    boxes_xyxy = np.ones_like(boxes)
-    boxes_xyxy[:, 0] = boxes[:, 0] - boxes[:, 2] / 2.0
-    boxes_xyxy[:, 1] = boxes[:, 1] - boxes[:, 3] / 2.0
-    boxes_xyxy[:, 2] = boxes[:, 0] + boxes[:, 2] / 2.0
-    boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.0
-    boxes_xyxy /= ratio
-    dets = inf.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=score_thr)
-    if dets is None:
-        return torch.zeros(0, dtype=torch.int64), torch.zeros(0, 4), torch.zeros(0)
-    return torch.from_numpy(dets[:, 5]).long(), torch.from_numpy(dets[:, :4]).float(), torch.from_numpy(dets[:, 4]).float()
 
 
 def weight_files(size):

@@ -3,7 +3,7 @@
 RT-DETRv2 has no package. The adapter runs a pinned checkout of the official repository's
 rtdetrv2_pytorch/, the way its references/deploy/rtdetrv2_torch.py does: the config's model and
 postprocessor in deploy mode, the image resized to 640x640 with torchvision, and the top 300 boxes
-back in the input image's pixels. That script runs in fp32 (FP16 only through TensorRT), so
+back in the input image's pixels. That script runs in fp32 (the README's fp16 speeds are TensorRT's), so
 PRECISIONS is fp32. Sizes are named by backbone, as the configs are: the README's S, M*, M, L and X
 are r18, r34, r50-m, r50 and r101. Only the COCO-trained checkpoints of the README's model zoo are
 listed, from its GitHub release links.
@@ -12,12 +12,11 @@ The configs build PResNet with `pretrained: True`, which downloads ImageNet weig
 checkpoint then replaces. The adapter turns that off, so the model is the same and nothing extra is
 downloaded.
 
-Its ONNX Runtime row on the CPU follows the README's steps 4 and 6: tools/export_onnx.py on the released
-checkpoint (`-c <config> -r <checkpoint> --check`), then references/deploy/rtdetrv2_onnxruntime.py, which makes a
-default InferenceSession and resizes the image to 640x640 exactly as rtdetrv2_torch.py does.
+There is no ONNX Runtime row yet. The README's export, `tools/export_onnx.py -c <config> -r <checkpoint> --check`,
+writes the weights to a separate external data file under the pinned torch's exporter, so the ONNX file's sha256 would
+not cover them.
 """
 
-import importlib.util
 import subprocess
 import sys
 import urllib.request
@@ -51,8 +50,6 @@ PRECISIONS = ["fp32"]
 INPUT = {s: "640x640" for s in SIZES}
 # rtdetrv2_torch.py draws boxes above 0.6, over the task's 0.5, so predict() keeps them from 0.5 (docs/adapters.md).
 THRESHOLD = 0.5
-# references/deploy/rtdetrv2_onnxruntime.py resizes to 640x640 as rtdetrv2_torch.py does.
-ONNXRUNTIME = {"status": "runs-as-is"}
 
 
 def package_version():
@@ -116,8 +113,6 @@ def load(size, precision):
 @torch.inference_mode()
 def eval_predict(m, x):
     # The top 300 boxes with every score, as the repository's COCO evaluation scores them.
-    if "sess" in m:
-        return ort_call(m, x)
     w, h = x.size
     labels, boxes, scores = m["net"](m["transforms"](x).unsqueeze(0).to(device()), torch.tensor([[w, h]], device=device()))
     return labels[0].cpu(), boxes[0].cpu(), scores[0].cpu()
@@ -145,51 +140,7 @@ def postprocess(m, raw, x):
 
 @torch.inference_mode()
 def predict(m, x):
-    if "sess" in m:
-        labels, boxes, scores = ort_call(m, x)
-        keep = scores > THRESHOLD
-        return labels[keep], boxes[keep], scores[keep]
     return postprocess(m, forward(m, preprocess(m, x)), x)
-
-
-def onnx_file(size, out):
-    """The README's step 4, `python tools/export_onnx.py -c path/to/config -r path/to/checkpoint --check`, run as it
-    is on the released checkpoint in `out`, where it writes its default model.onnx."""
-    checkout()
-    ckpt = download(size)
-    out = Path(out)
-    subprocess.run([sys.executable, str(REPO / "tools" / "export_onnx.py"), "-c", str(config(size)), "-r", str(ckpt), "--check"],
-                   cwd=out, check=True)
-    args = ["-c", f"configs/rtdetrv2/{CKPT[size][0]}", "-r", ckpt.name, "--check"]
-    return {"onnx": out / "model.onnx", "exporter": f"lyuwenyu/RT-DETR@{COMMIT} rtdetrv2_pytorch/tools/export_onnx.py", "args": args}
-
-
-def onnx_runtime():
-    checkout()
-    spec = importlib.util.spec_from_file_location("rtdetrv2_onnxruntime", REPO / "references" / "deploy" / "rtdetrv2_onnxruntime.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def load_onnx(size, onnx):
-    """The ONNX file in a session as rtdetrv2_onnxruntime.py's main() makes it: ort.InferenceSession(args.onnx_file)."""
-    checkout()
-    module = onnx_runtime()
-    return {"sess": module.ort.InferenceSession(str(onnx)), "names": names()}
-
-
-def onnx_session(m):
-    return m["sess"]
-
-
-def ort_call(m, x):
-    # rtdetrv2_onnxruntime.py's main(): the 640x640 resize and the photo's own size into the session.
-    w, h = x.size
-    orig_size = torch.tensor([w, h])[None]
-    im_data = T.Compose([T.Resize((640, 640)), T.ToTensor()])(x)[None]
-    labels, boxes, scores = m["sess"].run(output_names=None, input_feed={"images": im_data.data.numpy(), "orig_target_sizes": orig_size.data.numpy()})
-    return torch.from_numpy(labels[0]), torch.from_numpy(boxes[0]), torch.from_numpy(scores[0])
 
 
 def weight_files(size):

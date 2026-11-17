@@ -4,8 +4,8 @@
 name = "mtr-model-yolox"  # mtr-model-<id>
 version = "0.0.0"
 requires-python = ">=3.10"
-# The repository's requirements.txt. opencv-python-headless stands in for opencv_python: the same cv2, without the GUI
-# libraries. onnx and onnx-simplifier are only for the export, so they are in the onnxruntime group below.
+# The repository's requirements.txt, without onnx and onnx-simplifier, which only its export uses.
+# opencv-python-headless stands in for opencv_python: the same cv2, without the GUI libraries.
 dependencies = [
   "mtr-measure",
   "numpy",
@@ -28,14 +28,3 @@ package = false
 [tool.uv.sources]
 mtr-measure = { path = "../../tools/measure", editable = true }
 
-[dependency-groups]
-# ONNX Runtime rows on the CPU (docs/protocol.md, "CPU rows"), installed only for `--runtime onnxruntime-cpu`: what
-# tools/export_onnx.py (onnx, onnxsim; torch's exporter needs onnxscript) and demo/ONNXRuntime/onnx_inference.py import.
-# requirements.txt pins onnx-simplifier 0.4.10, whose wheels stop at Python 3.10; the export imports `onnxsim`, which
-# the onnxsim package provides.
-onnxruntime = [
-  "onnxruntime==1.31.1; python_version >= '3.11'",
-  "onnx",
-  "onnxsim",
-  "onnxscript",
-]
