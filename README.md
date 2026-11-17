@@ -102,7 +102,7 @@ Results land in `models/<id>/runs/<size>.json`, with `<size>.times.json` (every 
 
 | Task | Models (sizes) |
 |---|---|
-| **Object detection** | `rf-detr` (4) · `yolo26` (5) · `yolo11` (5) · `yolov8` (5) · `d-fine` (5) · `deimv2` (4) · `rt-detrv4` (4) · `gtr` (4) · `grounding-dino` (2) · `mm-grounding-dino` (3) · `llmdet` (3) |
+| **Object detection** | `rf-detr` (4) · `yolo26` (5) · `yolo11` (5) · `yolov8` (5) · `d-fine` (5) · `deimv2` (4) · `rt-detrv4` (4) · `rt-detrv2` (5) · `rt-detr` (5) · `deim` (5) · `yolox` (6) · `gtr` (4) · `grounding-dino` (2) · `mm-grounding-dino` (3) · `llmdet` (3) |
 | **Instance segmentation** | `rf-detr-seg` (6) · `yolo26-seg` (5) · `yolo11-seg` (5) · `yolov8-seg` (5) · `gtr-seg` (4) · `eomt` (2) |
 | **Image matting** | `birefnet` (3) · `ben2` (1) |
 | **Depth estimation** | `moge-2` (3) · `depth-anything-v2` (3) · `depth-anything-3-mono` (1) · `depth-anything-3-metric` (1) |
