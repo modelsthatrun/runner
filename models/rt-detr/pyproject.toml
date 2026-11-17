@@ -1,0 +1,26 @@
+# The model's uv environment. Pin the official package and torch at the versions you run,
+# and commit uv.lock next to this file, so the run can be repeated.
+[project]
+name = "mtr-model-rt-detr"  # mtr-model-<id>
+version = "0.0.0"
+requires-python = ">=3.10"
+# rtdetr_pytorch/requirements.txt, which asks for Python 3.8–3.11 and pins torch 2.0.1: its dataset code imports
+# torchvision.datapoints, which later torchvision releases removed. numpy stays below 2, which torch 2.0.1 was built
+# against, and transformers below 5, whose later releases need a newer torch (src/nn/backbone/regnet.py imports it).
+# onnx and onnxruntime are left out, because only its export uses them.
+dependencies = [
+  "mtr-measure",
+  "torch==2.0.1",
+  "torchvision==0.15.2",
+  "numpy<2",
+  "pycocotools",
+  "pyyaml",
+  "scipy",
+  "transformers<5",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+mtr-measure = { path = "../../tools/measure", editable = true }

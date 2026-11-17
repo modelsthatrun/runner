@@ -1,0 +1,33 @@
+# The model's uv environment. Pin the official package and torch at the versions you run,
+# and commit uv.lock next to this file, so the run can be repeated.
+[project]
+name = "mtr-model-rt-detrv2"  # mtr-model-<id>
+version = "0.0.0"
+requires-python = ">=3.10"
+# rtdetrv2_pytorch/requirements.txt, without onnxruntime-gpu: the ONNX Runtime row uses the CPU package below.
+dependencies = [
+  "mtr-measure",
+  "torch==2.14.1",
+  "torchvision==0.29.1",
+  "faster-coco-eval",
+  "pyyaml",
+  "tensorboard",
+  "scipy",
+  "packaging",
+  "pycocotools",
+  "onnx",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+mtr-measure = { path = "../../tools/measure", editable = true }
+
+[dependency-groups]
+# ONNX Runtime rows on the CPU (docs/protocol.md, "CPU rows"), installed only for `--runtime onnxruntime-cpu`: what
+# the README's export (torch's exporter needs onnxscript) and references/deploy/rtdetrv2_onnxruntime.py import.
+onnxruntime = [
+  "onnxruntime==1.31.1; python_version >= '3.11'",
+  "onnxscript",
+]
