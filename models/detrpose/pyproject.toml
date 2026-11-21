@@ -30,10 +30,11 @@ mtr-measure = { path = "../../tools/measure", editable = true }
 
 [dependency-groups]
 # ONNX Runtime rows on the CPU (docs/protocol.md, "CPU rows"), installed only for `--runtime onnxruntime-cpu`:
-# tools/deployment/export_onnx.py checks the ONNX file (onnx), torch's exporter needs onnxscript, and
-# tools/inference/onnx_inf.py runs it with onnxruntime.
+# tools/deployment/export_onnx.py checks the ONNX file (onnx) and simplifies it (onnxsim; --simplify defaults to on),
+# torch's exporter needs onnxscript, and tools/inference/onnx_inf.py runs it with onnxruntime.
 onnxruntime = [
   "onnxruntime==1.31.1",
   "onnx",
+  "onnxsim",
   "onnxscript",
 ]

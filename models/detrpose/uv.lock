@@ -135,7 +135,7 @@ name = "cuda-bindings"
 version = "13.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cuda-pathfinder" },
+    { name = "cuda-pathfinder", marker = "sys_platform != 'darwin'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/12/09/74e159fbe67b081cca842871addce6d2b493f9bb48ce85124f023eb5f1c9/cuda_bindings-13.5.0-cp311-cp311-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:71c15ed97099a8ef416515d80ddd10770e0f6339234e16855a526d2896516631", size = 7434875 },
@@ -582,6 +582,7 @@ onnxruntime = [
     { name = "onnx" },
     { name = "onnxruntime" },
     { name = "onnxscript" },
+    { name = "onnxsim" },
 ]
 
 [package.metadata]
@@ -606,6 +607,7 @@ onnxruntime = [
     { name = "onnx" },
     { name = "onnxruntime", specifier = "==1.31.1" },
     { name = "onnxscript" },
+    { name = "onnxsim" },
 ]
 
 [[package]]
@@ -636,7 +638,7 @@ name = "nvidia-cublas"
 version = "13.1.1.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cuda-nvrtc" },
+    { name = "nvidia-cuda-nvrtc", marker = "sys_platform != 'darwin'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/a1/0bd24ee8c8d03adac032fd2909426a00c88f8c57961b1277ded97f91119f/nvidia_cublas-13.1.1.3-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:b7a210458267ac818974c53038fbec2e969d5c99f305ab15c72522fa9f001dd5", size = 542848918 },
@@ -675,7 +677,7 @@ name = "nvidia-cudnn-cu13"
 version = "9.24.0.43"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas" },
+    { name = "nvidia-cublas", marker = "sys_platform != 'darwin'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ca/30/7c257e3d5cb4fecb147b93895c66e29c93f8e76d74b45bb418ff0587c4ec/nvidia_cudnn_cu13-9.24.0.43-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:a6812a554a1ff0413e9c52b84c26c050380649ab9615f9c16bded368ce9f421f", size = 650976863 },
@@ -687,7 +689,7 @@ name = "nvidia-cufft"
 version = "12.0.0.61"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink" },
+    { name = "nvidia-nvjitlink", marker = "sys_platform != 'darwin'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8b/ae/f417a75c0259e85c1d2f83ca4e960289a5f814ed0cea74d18c353d3e989d/nvidia_cufft-12.0.0.61-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:2708c852ef8cd89d1d2068bdbece0aa188813a0c934db3779b9b1faa8442e5f5", size = 214053554 },
@@ -717,9 +719,9 @@ name = "nvidia-cusolver"
 version = "12.0.4.66"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas" },
-    { name = "nvidia-cusparse" },
-    { name = "nvidia-nvjitlink" },
+    { name = "nvidia-cublas", marker = "sys_platform != 'darwin'" },
+    { name = "nvidia-cusparse", marker = "sys_platform != 'darwin'" },
+    { name = "nvidia-nvjitlink", marker = "sys_platform != 'darwin'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/c3/b30c9e935fc01e3da443ec0116ed1b2a009bb867f5324d3f2d7e533e776b/nvidia_cusolver-12.0.4.66-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:02c2457eaa9e39de20f880f4bd8820e6a1cfb9f9a34f820eb12a155aa5bc92d2", size = 223467760 },
@@ -731,7 +733,7 @@ name = "nvidia-cusparse"
 version = "12.6.3.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink" },
+    { name = "nvidia-nvjitlink", marker = "sys_platform != 'darwin'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f8/94/5c26f33738ae35276672f12615a64bd008ed5be6d1ebcb23579285d960a9/nvidia_cusparse-12.6.3.3-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:80bcc4662f23f1054ee334a15c72b8940402975e0eab63178fc7e670aa59472c", size = 162155568 },
@@ -881,6 +883,26 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/0a/01/3e3fab8d643ca097ea4aa9e51246643699dfaaa0650589744fe44bc46651/onnxscript-0.7.2.tar.gz", hash = "sha256:2c664f6383d10f332a4d47b2876dcab16dba84909fe703656b19abc281fda165", size = 646719 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b9/3b/06260997cdc41138e58718588a6c87d0eb342bbe0dda8a6aae91d163c384/onnxscript-0.7.2-py3-none-any.whl", hash = "sha256:d0e7121c6a1eefd608058928e111cbdb76709f70d269ff0d07aee493bd1d13c9", size = 754215 },
+]
+
+[[package]]
+name = "onnxsim"
+version = "0.8.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "onnx" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7e/3c/cbfc805b3716cd7ce4238a0c6980b75227afb87cdccd22f34e986792f8e4/onnxsim-0.8.1.tar.gz", hash = "sha256:101c7b3d31e39c609cdfafddb4d3586572435f76f0e1a191d95d0a6797e1b0a4", size = 14687366 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4b/cc/e8e0c2a62447b08558c7955cb5ca1f1ed77a21ac6315e145f395f8df5560/onnxsim-0.8.1-cp311-cp311-macosx_13_0_arm64.whl", hash = "sha256:e76714776a9796dc802067f22e416289cda2e77c8c603e257ac0f2200a1dea92", size = 8858859 },
+    { url = "https://files.pythonhosted.org/packages/15/6e/38e700cd13aa34061e65a901c4c08b852015f2bc86ce50a7e922e0697cb8/onnxsim-0.8.1-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8092d1de8a138a0f2f6da0e577b17f62ffcc6d74602d56f454bf8c38ae8d3365", size = 8990090 },
+    { url = "https://files.pythonhosted.org/packages/89/ed/c3a90c1ea1d79b590c3131b16e863b91f88c9a6b04d1a2b38129247b71b9/onnxsim-0.8.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7b2fa45921e57d959ac31ed55e66b5d53f867092f26190c66d89bda49d1bc102", size = 9670183 },
+    { url = "https://files.pythonhosted.org/packages/5a/ec/46793033ac6807e08ad0bf759dbcf7c888d17a7f66205b19018a5334b7ae/onnxsim-0.8.1-cp311-cp311-win_amd64.whl", hash = "sha256:cc9adc23b1188508492776a436b2e084765664afd8d96576ba3c4e292a401e69", size = 7981972 },
+    { url = "https://files.pythonhosted.org/packages/2a/56/ef492e16eea7d2f85579f81264bdd41a3058c808ebf31a15340a78589d2f/onnxsim-0.8.1-cp312-abi3-macosx_13_0_arm64.whl", hash = "sha256:153336c674ff7c055f18e0d964e03ed89c1767e0ec793fe050519af14e0fe259", size = 8857461 },
+    { url = "https://files.pythonhosted.org/packages/02/69/c96ceb1fcb57ad947759833b2106c93db87f0cf689b86e39279ff74dffc1/onnxsim-0.8.1-cp312-abi3-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:61ba4b7c4174b16d720ce57c1fd4d16fbd951ece2d4f89f3aee3d41628ad8c24", size = 8987234 },
+    { url = "https://files.pythonhosted.org/packages/a7/db/8135f2d1eb4ce4235d3ea2deaa9ddf518f455ad3cfe1b07f3c3a07bd2d41/onnxsim-0.8.1-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:eaff55bf7a238548cf79b18a539859870029b431a0b2aa67d4425c03183a2281", size = 9665232 },
+    { url = "https://files.pythonhosted.org/packages/2d/22/96011ef5b0ec7b13e787a7df7eed50e5b42f11db4e1ad364eec8652dbf77/onnxsim-0.8.1-cp312-abi3-pyemscripten_2025_0_wasm32.whl", hash = "sha256:92a377f520b251b4418e37b7c6a44d8c1b13d49b5225c3d483825b8c4c765479", size = 5855007 },
+    { url = "https://files.pythonhosted.org/packages/ba/7b/61d6a4fa155a52ea7bc16accc7af50afaf4c0e20c38415673f6452cbaf5c/onnxsim-0.8.1-cp312-abi3-win_amd64.whl", hash = "sha256:a7db3a590d1ea86dcbc42b02cc63ae742bd3ec5cd36eefbad00ae1d5a6782887", size = 7981832 },
 ]
 
 [[package]]

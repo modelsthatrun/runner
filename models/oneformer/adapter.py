@@ -3,14 +3,16 @@
 OneFormer is one model for semantic, instance and panoptic segmentation, trained once on COCO panoptic (133
 classes, the first 80 of them COCO's things). The model card runs OneFormerForUniversalSegmentation from
 transformers with the processor and task_inputs=["instance"]. The processor resizes the image to a shorter side of
-800 and a longer side of at most 1333, as the authors' COCO configs test it. Instances are read the way the authors'
-repository does (oneformer/oneformer_model.py, instance_inference()): mask logits upsampled to the padded input,
-cropped to the image and resized to its own size, the top 100 (query, class) pairs by class probability
-(TEST.DETECTIONS_PER_IMAGE), then only "thing" classes kept, since the model was trained on panoptic labels. Each
-mask is the pixels with a positive logit, scored as class probability times the mask's mean probability inside it.
-It runs in fp32, as the card and the repository's test do. predict() returns every kept instance, as the
-repository's predictor does; the tool's fixed threshold decides what is drawn. Only the Swin-L checkpoint is listed:
-the DiNAT-L one needs NATTEN's compiled kernels.
+800 and a longer side of at most 1333, as the authors' COCO configs test it; the adapter then pads the normalized
+image with zeros to a multiple of 32 (MODEL.ONE_FORMER.SIZE_DIVISIBILITY), which the processor doesn't do. Instances
+are read the way the authors' repository does (oneformer/oneformer_model.py, instance_inference()): mask logits
+upsampled to the padded input, cropped to the image and resized to its own size, the top 150 (query, class) pairs by
+class probability (TEST.DETECTIONS_PER_IMAGE in configs/coco/swin/oneformer_swin_large_bs16_100ep.yaml), then only
+"thing" classes kept, since the model was trained on panoptic labels. Each mask is the pixels with a positive logit,
+scored as class probability times the mask's mean probability inside it. It runs in fp32, as the card and the
+repository's test do. predict() returns every kept instance, as the repository's predictor does; the tool's fixed
+threshold decides what is drawn. Only the Swin-L checkpoint is listed: the DiNAT-L one needs NATTEN's compiled
+kernels.
 """
 
 from pathlib import Path
@@ -23,7 +25,8 @@ from mtr_measure import device
 from mtr_measure.predictions import Masks
 
 REPOS = {"swin-large": ("shi-labs/oneformer_coco_swin_large", "3a263017ca5c75adbea145f25f81b118243d4394")}
-TOP_K = 100
+TOP_K = 150
+SIZE_DIVISIBILITY = 32
 THINGS = 80  # COCO panoptic's contiguous ids 0-79 are the things
 
 TASK = "instance-segmentation"
@@ -39,9 +42,19 @@ def load(size, precision):
     return {"model": model, "processor": processor, "names": model.config.id2label}
 
 
+def prepare(processor, x):
+    """The processor's inputs, with the image and its mask padded with zeros to a multiple of SIZE_DIVISIBILITY."""
+    inputs = processor(images=x, task_inputs=["instance"], return_tensors="pt")
+    ph, pw = inputs["pixel_values"].shape[-2:]
+    pad = (0, -pw % SIZE_DIVISIBILITY, 0, -ph % SIZE_DIVISIBILITY)
+    inputs["pixel_values"] = F.pad(inputs["pixel_values"], pad)
+    inputs["pixel_mask"] = F.pad(inputs["pixel_mask"], pad)
+    return inputs
+
+
 def input_size(size, image):
     repo, revision = REPOS[size]
-    pixels = OneFormerProcessor.from_pretrained(repo, revision=revision)(images=image, task_inputs=["instance"], return_tensors="pt")["pixel_values"]
+    pixels = prepare(OneFormerProcessor.from_pretrained(repo, revision=revision), image)["pixel_values"]
     return f"{pixels.shape[-1]}x{pixels.shape[-2]}"
 
 
@@ -65,7 +78,7 @@ def instance_inference(inputs, outputs, x):
 
 @torch.inference_mode()
 def predict(m, x):
-    inputs = m["processor"](images=x, task_inputs=["instance"], return_tensors="pt").to(device())
+    inputs = prepare(m["processor"], x).to(device())
     outputs = m["model"](pixel_values=inputs["pixel_values"], pixel_mask=inputs["pixel_mask"], task_inputs=inputs["task_inputs"])
     return instance_inference(inputs, outputs, x)
 

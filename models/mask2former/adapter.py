@@ -13,6 +13,11 @@ Face), the way the repository tests them:
   mask's mean probability inside it.
 It runs in fp32, as detectron2's test does and as the model card does. predict() returns all 100 instances, as the
 repository's predictor does; the tool's fixed threshold decides what is drawn.
+
+Swin-B is the ImageNet-21k checkpoint (facebook/mask2former-swin-base-IN21k-coco-instance, MODEL_ZOO.md's "Swin-B
+(IN21k)" row). The ImageNet-1k one, facebook/mask2former-swin-base-coco-instance, gives no usable output in either of
+its files: its best class probability on the timing photo is 0.66 where the other sizes reach 1.0, and it scores 0.0
+mask AP on COCO val2017.
 """
 
 from pathlib import Path
@@ -27,7 +32,7 @@ from mtr_measure.predictions import Masks
 REPOS = {
     "swin-tiny": ("facebook/mask2former-swin-tiny-coco-instance", "22c4a2f15dc88149b8b8d9f4d42c54431fbd66f6"),
     "swin-small": ("facebook/mask2former-swin-small-coco-instance", "1b7ac418a0f3cb5edfc5037e488d53587b8bb76b"),
-    "swin-base": ("facebook/mask2former-swin-base-coco-instance", "e3169bb2cdc9a0d47c3582a19a757854e3fe82e3"),
+    "swin-base-in21k": ("facebook/mask2former-swin-base-IN21k-coco-instance", "9cfc92da70c0ba48132317591f1753f7a694e498"),
     "swin-large": ("facebook/mask2former-swin-large-coco-instance", "d8f2bced294e26108e73d48bb7a7094c9bc7c71d"),
 }
 # The repository's COCO test settings (configs/coco/instance-segmentation/Base-COCO-InstanceSegmentation.yaml).
@@ -84,7 +89,9 @@ def weight_files(size):
     from huggingface_hub import hf_hub_download
 
     repo, revision = REPOS[size]
-    return [Path(hf_hub_download(repo, "model.safetensors", revision=revision))]
+    # The IN21k repository has only pytorch_model.bin, which transformers loads when there is no model.safetensors.
+    name = "pytorch_model.bin" if size == "swin-base-in21k" else "model.safetensors"
+    return [Path(hf_hub_download(repo, name, revision=revision))]
 
 
 def to_prediction(m, x, out):
