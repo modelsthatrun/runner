@@ -102,11 +102,11 @@ Results land in `models/<id>/runs/<size>.json`, with `<size>.times.json` (every 
 
 | Task | Models (sizes) |
 |---|---|
-| **Object detection** | `rf-detr` (4) · `yolo26` (5) · `yolo11` (5) · `yolov8` (5) · `d-fine` (5) · `deimv2` (4) · `rt-detrv4` (4) · `rt-detrv2` (5) · `rt-detr` (5) · `deim` (5) · `yolox` (6) · `gtr` (4) · `grounding-dino` (2) · `mm-grounding-dino` (3) · `llmdet` (3) |
-| **Instance segmentation** | `rf-detr-seg` (6) · `yolo26-seg` (5) · `yolo11-seg` (5) · `yolov8-seg` (5) · `gtr-seg` (4) · `eomt` (2) |
-| **Image matting** | `birefnet` (3) · `ben2` (1) |
-| **Depth estimation** | `moge-2` (3) · `depth-anything-v2` (3) · `depth-anything-3-mono` (1) · `depth-anything-3-metric` (1) |
-| **Pose estimation** | `yolo26-pose` (5) · `yolo11-pose` (5) · `yolov8-pose` (5) · `gtr-pose` (4) · `rf-detr-keypoint` (1) |
+| **Object detection** | `rf-detr` (4) · `yolo26` (5) · `yolo12` (5) · `yolo11` (5) · `yolov10` (6) · `yolov9` (5) · `yolov8` (5) · `d-fine` (5) · `deimv2` (4) · `rt-detrv4` (4) · `rt-detrv2` (5) · `rt-detr` (8) · `deim` (5) · `yolox` (6) · `gtr` (4) · `grounding-dino` (2) · `mm-grounding-dino` (3) · `llmdet` (3) · `owlv2` (2) · `omdet-turbo` (1) |
+| **Instance segmentation** | `rf-detr-seg` (6) · `yolo26-seg` (5) · `yolo11-seg` (5) · `yolov8-seg` (5) · `gtr-seg` (4) · `eomt` (2) · `mask2former` (4) · `oneformer` (1) |
+| **Image matting** | `birefnet` (6) · `ben2` (1) |
+| **Depth estimation** | `moge-2` (3) · `depth-anything-v2` (3) · `depth-anything-v2-metric` (6) · `depth-anything-3` (2) · `depth-anything-3-mono` (1) · `depth-anything-3-metric` (1) · `yolo26-depth` (5) |
+| **Pose estimation** | `yolo26-pose` (5) · `yolo11-pose` (5) · `yolov8-pose` (5) · `gtr-pose` (4) · `rf-detr-keypoint` (1) · `detrpose` (5) |
 | **Chat** (GGUF via llama.cpp) | `qwen3` (2) · `qwen3-5` (1) · `qwen3-8` (1) · `gemma-4` (2) |
 | **Text-to-image** | `flux-2-klein` (1) · `z-image` (1) · `sdxl` (1) |
 

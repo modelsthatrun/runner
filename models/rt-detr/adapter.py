@@ -5,9 +5,11 @@ rtdetr_pytorch/, the way its tools/infer.py does without slicing: the config's m
 postprocessor in deploy mode, the image resized to 640x640 with torchvision, and the top 300 boxes
 back in the input image's pixels. That script runs in fp32 (it uses autocast only for sliced
 inference, which is off by default), so PRECISIONS is fp32. Sizes are named by backbone, as the
-configs are. Only the COCO-trained checkpoints of the README's model zoo with GitHub release links
-are listed. The README says they were converted from the PaddlePaddle models, and "may have slight
-differences between this table and paper". RT-DETRv2, from the same repository, is its own family.
+configs are. The README's model zoo checkpoints with GitHub release links are listed: the COCO-trained
+ones, and the three "COCO+Objects365" ones (`-o365`), which the README describes as "finetuned model on
+COCO using pretrained weights trained on Objects365" and loads with the same configs. The README says
+they were converted from the PaddlePaddle models, and "may have slight differences between this table
+and paper". RT-DETRv2, from the same repository, is its own family.
 
 The configs build PResNet with `pretrained: True`, which downloads ImageNet weights that the
 checkpoint then replaces. The adapter turns that off, so the model is the same and nothing extra is
@@ -42,6 +44,9 @@ CKPT = {
     "r50-m": ("rtdetr_r50vd_m_6x_coco.yml", "v0.1/rtdetr_r50vd_m_6x_coco_from_paddle.pth"),
     "r50": ("rtdetr_r50vd_6x_coco.yml", "v0.1/rtdetr_r50vd_6x_coco_from_paddle.pth"),
     "r101": ("rtdetr_r101vd_6x_coco.yml", "v0.1/rtdetr_r101vd_6x_coco_from_paddle.pth"),
+    "r18-o365": ("rtdetr_r18vd_6x_coco.yml", "v0.1/rtdetr_r18vd_5x_coco_objects365_from_paddle.pth"),
+    "r50-o365": ("rtdetr_r50vd_6x_coco.yml", "v0.1/rtdetr_r50vd_2x_coco_objects365_from_paddle.pth"),
+    "r101-o365": ("rtdetr_r101vd_6x_coco.yml", "v0.1/rtdetr_r101vd_2x_coco_objects365_from_paddle.pth"),
 }
 
 TASK = "object-detection"

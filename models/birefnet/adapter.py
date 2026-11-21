@@ -5,6 +5,10 @@ torch.set_float32_matmul_precision("high"), calls .half(), resizes the image to 
 square size with ImageNet normalization, takes the last output's sigmoid, and resizes that mask
 back to the image with PIL. predict() is that whole extract_object() call, without pasting the
 alpha onto the image. Model and input are cast with .half(), so fp16 is the official precision.
+
+The portrait and matting checkpoints use the general card's code at 1024, the size they were trained at, and
+HR-matting its own card's 2048. BiRefNet_dynamic isn't listed: its card leaves the resize out, and the model then
+fails on an image whose sides aren't multiples of its patch grid (1600x1067 here).
 """
 
 from pathlib import Path
@@ -21,6 +25,9 @@ REPOS = {
     "general": ("ZhengPeng7/BiRefNet", "e2bf8e4460fc8fa32bba5ea4d94b3233d367b0e4", 1024),
     "hr": ("ZhengPeng7/BiRefNet_HR", "a7a562f6fd16021180f2f4348f4de003a2d3d1e1", 2048),
     "lite": ("ZhengPeng7/BiRefNet_lite", "aa62cd87eafb9cc43056d08ef3615a14628b831d", 1024),
+    "portrait": ("ZhengPeng7/BiRefNet-portrait", "b6561965a70070d9143fd9e558f6ca3c481510db", 1024),
+    "matting": ("ZhengPeng7/BiRefNet-matting", "eccde0a8cbdce7ac5fecfeb06340fe7b949e85d9", 1024),
+    "hr-matting": ("ZhengPeng7/BiRefNet_HR-matting", "5d6b6f8adcb5b417c871b1d84ceaae9871355b7f", 2048),
 }
 
 TASK = "image-matting"
